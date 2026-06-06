@@ -1,0 +1,166 @@
+# ============ 个人信息流 MVP 配置 ============
+
+vault_path: "~/Obsidian/MyVault"
+
+models:
+  profile: "deepseek-v4-pro"
+  rank: "deepseek-v4-flash"
+
+profile:
+  cache_path: "data/profile.md"
+  max_chars: 200000
+  exclude: [".trash", ".obsidian", "templates"]
+
+# ===== 额外信号：让画像不只看笔记 =====
+signals:
+  # AI 聊天记录导出文件夹。Claude：设置里导出数据，把得到的 conversations.json 放进来。留空跳过。
+  chat_dir: ""
+  chat_max_chars: 60000
+  # 推送捕获——留到 skill 阶段做（届时用 Telegram 网关自动捕获）。现在留空即可。
+  capture_path: ""
+  capture_max_chars: 20000
+
+# ===== 获取层：多类型源，面要宽 =====
+# type: rss / hackernews / reddit / arxiv / googlenews / github
+sources:
+  - type: hackernews
+    limit: 30
+  - type: arxiv
+    category: cs.AI
+    limit: 20
+
+  # GitHub 又新又火：最近 since_days 天新建、按 star 排序
+  - type: github
+    since_days: 14
+    limit: 15
+    # language: python      # 可选：只看某语言
+    # topic: llm            # 可选：只看某主题
+
+  - type: reddit            # 偶尔被限流，失败自动跳过
+    subreddit: programming
+    window: day
+    limit: 20
+
+  - type: rss
+    url: "https://www.quantamagazine.org/feed/"
+  - type: rss
+    url: "https://aeon.co/feed.rss"
+  - type: rss
+    url: "https://feeds.arstechnica.com/arstechnica/index"
+
+  # 拓展面：搜索把"邻近但你笔记里没有"的主题拉进来
+  - type: googlenews
+    queries: ["design systems", "cognitive science", "economics"]
+    limit: 8
+
+  # YouTube：原生 RSS，免费、无需 API key。
+  # 既可填 channel_id（UCxxxx，最稳），也可填 @handle（自动解析，加新频道更省事）。
+  - type: youtube
+    limit: 6
+    channels:
+      # —— 前沿 AI（研究 / 论文 / 动态）——
+      - "UCPk8m_r6fkUSYmvgCBwq-sw"   # Andrej Karpathy（手搓神经网络/LLM，实现级深度）
+      - "UCZHmQk67mSJgfCCTn7xBfew"   # Yannic Kilcher（前沿论文逐篇精读）
+      - "UCbfYPyITQ-7l4upoX8nvctg"   # Two Minute Papers（AI 研究速览，更新勤）
+      - "UCNJ1Ymd5yFuUPtn21xtRbbw"   # AI Explained（前沿模型深度分析）
+      - "UCgfe2ooZD3VJPB6aJAnuQng"   # bycloud（AI 研究/工具动态）
+      # —— 讲解化项目实操 ——
+      - "UCHXa4OpASJEwrHrLeIzw7Yg"   # Nicholas Renotte（AI/ML 项目从零搭建）
+      - "UCZirJBCIZsSgsSPn-uWVSfg"   # Tech With Tim（Python/ML 项目实战）
+      - "UCfzlCWGWYyIQ0aLC5w48gBQ"   # sentdex（Python/神经网络从零实现）
+      - "UC8butISFwT-Wl7EV0hUK0BQ"   # freeCodeCamp（超长项目级完整教程）
+      # —— 数学直觉 ——
+      - "UCYO_jab_esuFRV4b17AJtAw"   # 3Blue1Brown（线代/微积分/神经网络可视化）
+    # 以后加新频道，直接写 handle 即可，会自动解析：
+    # handles: ["@某频道"]
+
+  # X / 推特：没有免费公共 RSS（Nitter 已停摆）。需自建 RSSHub 并配 Twitter token，
+  # 然后把 base 指向它；拿不到会自动跳过。
+  # - type: twitter
+  #   base: "http://localhost:1200"      # 你自建的 RSSHub 地址
+  #   handles: ["sama", "karpathy"]
+  #   limit: 10
+
+  # 好书推荐
+  - type: googlenews
+    name: "好书推荐"
+    queries: ["best new nonfiction books", "book recommendations technology"]
+    limit: 6
+
+  # ===== 中文平台优质长文（知乎/公众号/论坛/豆瓣）=====
+  # 这些平台没有公开 API，用 RSSHub 转成 RSS 后就能当普通 rss 源接。
+  # 注意：RSSHub 路由会变，以 docs.rsshub.app 为准；公共实例 rsshub.app 常限流，
+  # 建议在 WSL 上用 Docker 自建 RSSHub（更稳）。示例（需自行核对当前路由）：
+  # - type: rss
+  #   name: "知乎热榜"
+  #   url: "https://rsshub.app/zhihu/hotlist"
+  # - type: rss
+  #   name: "豆瓣新书"
+  #   url: "https://rsshub.app/douban/book/latest"
+  # - type: rss
+  #   name: "某公众号"
+  #   url: "https://rsshub.app/wechat/..."        # 见 RSSHub 文档
+  # - type: rss
+  #   name: "V2EX 热议"
+  #   url: "https://rsshub.app/v2ex/topics/hot"
+
+fetch:
+  days: 10
+  per_feed: 30
+  full_text: true           # A1：跟链接抓正文再打分（更准，但更慢）
+  full_text_limit: 40       # A3：每次最多抓多少篇正文（控成本/时间）
+  full_text_max_chars: 4000
+  full_text_timeout: 20
+
+cluster:                    # C1：标题高度相似的视为同一事件，只留一条
+  enabled: true
+  title_threshold: 0.82
+
+embedding:                  # B1：本地向量层（语义去重 + "更多类似"）
+  enabled: true             # 需先 pip install fastembed（首次会下载约 130MB 模型）
+  provider: "fastembed"     # fastembed（轻量，默认）| ollama
+  model: "BAAI/bge-small-en-v1.5"   # 内容以英文为主够用；中文多可换多语言模型或用 ollama 的 bge-m3
+  # ollama_url: "http://localhost:11434"   # provider=ollama 时用
+  cluster_threshold: 0.86   # 语义去重的余弦阈值
+  liked_boost_max: 12       # 与你点过"好"的内容越像，最多加多少分（"更多类似"）
+  cache_path: "data/emb_cache.json"
+  anchor_path: "data/anchors.json"
+
+rank:
+  batch_size: 12
+  breadth_weight: 0.6       # 影响展示用的综合分；选条的 3:7 由下面的 ratio 决定
+
+feedback:
+  bias_step: 6              # 每条反馈给来源加/减多少分
+  bias_cap: 24              # 来源偏置上限
+  remember: 12              # 画像里带上最近多少条"好/差"反馈
+  keyword_bias_step: 3      # D1：关键词级偏置力度
+  keyword_bias_cap: 12      # D1：单个关键词偏置上限
+  min_source_samples: 4     # D2：判定"低命中来源"所需的最少样本
+  source_drop_precision: 0.34  # D2：命中率低于此值就建议下线
+  adaptive_exploration: true   # D2：根据拓展位命中率自动微调 3:7 比例
+
+digest:
+  output_dir: "~/Obsidian/MyVault/信息简报"
+  min_score: 60             # 只给"贴合位"设门槛
+  max_items: 10             # 简报总条数
+  max_per_source: 3         # 每个来源最多几条；0 = 不限
+  exploration_ratio: 0.7    # 开眼界占比：0.7 = 3 贴合 : 7 拓展
+
+portrait:                   # 本地管线不再出图（Pollinations 已收费 402）。
+  enabled: false            # 接 Hermes 后由 Hermes 的 image_generate 出图；纯本地想要图再设 true
+  output_path: "~/Obsidian/MyVault/信息简报/portrait.png"
+  note_path: "~/Obsidian/MyVault/信息简报/兴趣画像.md"
+  # 可选：一句话给配图定调，模型会优先体现。留空则纯靠画像自动生成。
+  # 例：用"信息的河流""知识的园丁""把碎片编织成网"这类意象，而非书桌课本
+  style_hint: ""
+  # 可选：直接锁定整句英文提示词（填了就跳过模型生成，控制力最强）
+  prompt_override: ""
+  model: "flux"
+  width: 1024
+  height: 1024
+
+state:
+  seen_path: "data/seen.json"
+  feedback_log: "data/feedback_log.json"
+  feedback_state: "data/feedback_state.json"
