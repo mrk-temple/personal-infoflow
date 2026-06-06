@@ -25,7 +25,7 @@
 **A. 本地 CLI**
 
 ```bash
-git clone https://github.com/mrk-temple/personal-infoflow.git&& cd personal-infoflow
+git clone https://github.com/mrk-temple/personal-infoflow.git && cd personal-infoflow
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
