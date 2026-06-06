@@ -1,5 +1,11 @@
 # personal-infoflow
 
+> A personalized information flow that lives inside your Obsidian vault.
+
+It reads your notes to build an evolving **taste model**, pulls from many sources (RSS / Hacker News / arXiv / GitHub / Google News / YouTube), de-duplicates them semantically with a local embedding model, and uses an LLM to score every item on two axes — **relevance** and **exploration**. A daily digest is written back to your vault using a deliberate **3 : 7 (familiar : eye-opening)** ratio to fight the echo chamber. You mark items 👍/👎 right in the note, and it adjusts source weights, keyword bias, and your profile over time. No new app, no extra website — **Obsidian is the UI, a markdown file is the deliverable, editing that file is the feedback.** Also packaged as a [Hermes Agent](https://github.com/NousResearch/hermes-agent) skill.
+
+*(中文说明见下。)*
+
 一个长在你 Obsidian 里的个性化信息流。它读你的笔记建立"兴趣画像"，从多个来源抓内容，用大模型按 **3 贴合 : 7 开眼界** 的配方筛选，每天写一篇简报回你的 vault——你在简报里随手标个"好/差"，它下次就更懂你。
 
 没有新 App，没有又一个要登录的网站。**Obsidian 就是界面**，一篇 markdown 就是交付，编辑那篇 markdown 就是反馈。
