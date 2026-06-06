@@ -25,7 +25,7 @@
 **A. 本地 CLI**
 
 ```bash
-git clone <your-repo-url> && cd personal-infoflow
+git clone (https://github.com/mrk-temple/personal-infoflow.git)&& cd personal-infoflow
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
@@ -59,16 +59,6 @@ python -m infoflow.main --feedback           # 只汇总反馈，不抓取
 - **配图**：当前留给上层（如 Hermes 的生图工具）处理，本地管线默认 `portrait.enabled: false`。
 - 这是个人项目，不是生产级服务。
 
-## 已做 / Roadmap
-
-已完成：多源获取（含 YouTube）、全文抓取、本地 embedding 语义去重、"更多类似"、命中率评估与自适应 3:7、关键词级反馈偏置、同日追加、Hermes skill 封装。
-
-待做：
-
-- [ ] Telegram 捕获"日常刷到的东西"作为额外信号
-- [ ] 隐式反馈（从行为推断喜好）
-- [ ] 画像分层 + 时间衰减
-- [ ] 出图走 Codex OAuth + gpt-image-2
 
 ## License
 
