@@ -2,17 +2,17 @@
 import json
 import pathlib
 
-from .client import resolve
-from .feedback import collect_feedback
-from .profile import load_profile
-from .fetch import fetch_items
-from .cluster import cluster_items
 from . import embed as _embed
-from .semantic import embed_items, cluster_semantic, build_anchors, liked_similarity
-from .enrich import enrich
-from .rank import rank_items
+from .cluster import cluster_items
+from .config import resolve
 from .digest import write_digest
+from .enrich import enrich
+from .feedback import collect_feedback
+from .fetch import fetch_items
 from .portrait import generate_portrait, write_profile_note
+from .profile import load_profile
+from .rank import rank_items
+from .semantic import build_anchors, cluster_semantic, embed_items, liked_similarity
 
 
 def load_seen(path):
@@ -59,7 +59,7 @@ def run(cfg, client, refresh_profile=False, portrait=False, feedback_only=False,
         log("· 生成画像配图 ...")
         try:
             img, prompt = generate_portrait(client, cfg, profile)
-            note = write_profile_note(cfg, profile, img, prompt)
+            write_profile_note(cfg, profile, img, prompt)
             log(f"  配图已存 {img}")
             result["portrait"] = str(img)
         except Exception as e:

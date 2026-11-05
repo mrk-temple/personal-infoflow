@@ -1,13 +1,13 @@
 import re
-import urllib.request
 from html.parser import HTMLParser
+
+from . import http
 
 try:
     import trafilatura  # 装了就用它，正文提取质量高很多
 except ImportError:
     trafilatura = None
 
-UA = {"User-Agent": "Mozilla/5.0 (infoflow personal feed)"}
 _SKIP = {"script", "style", "nav", "footer", "header", "aside", "form", "noscript"}
 
 
@@ -51,12 +51,9 @@ def fetch_fulltext(url, timeout=20, cap=4000):
         except Exception:
             pass
     try:
-        req = urllib.request.Request(url, headers=UA)
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            ct = r.headers.get("Content-Type", "")
-            if ct and "html" not in ct and "xml" not in ct:
-                return ""
-            html = r.read(1_500_000).decode("utf-8", "ignore")
+        html, ct = http.get_text(url, timeout=timeout, ua=http.BROWSER_UA, max_bytes=1_500_000)
+        if ct and "html" not in ct and "xml" not in ct:
+            return ""
         return _strip_html(html)[:cap]
     except Exception:
         return ""

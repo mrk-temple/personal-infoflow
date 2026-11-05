@@ -1,8 +1,9 @@
-import re
 import json
 import pathlib
+import re
+import threading
 
-from .client import resolve
+from .config import resolve
 
 POS = {"好", "赞", "+", "👍", "有用", "有价值", "good"}
 NEG = {"差", "噪音", "-", "👎", "无用", "没用", "bad"}
@@ -170,6 +171,48 @@ def collect_feedback(cfg):
     state = _aggregate(cfg, log)
     state_path.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
     return {"new": new, **state}
+
+
+def load_state(cfg):
+    """读取上一轮聚合出的反馈状态（来源/关键词偏置、liked/disliked、命中率等）。"""
+    return _state(cfg)
+
+
+_LOCK = threading.Lock()
+
+
+def set_verdict(cfg, date, link, verdict):
+    """把一条简报条目的 反馈:: 行改成 好/差（或清空）。
+
+    直接改 vault 里的 markdown——与用户在 Obsidian 里手写完全等效，
+    下次 collect_feedback 自然学到。返回是否真的改了文件。
+    """
+    token = {"pos": "好", "neg": "差", None: ""}[verdict]
+    path = pathlib.Path(resolve(cfg["digest"]["output_dir"])) / f"{date}.md"
+    if not path.exists():
+        return False
+    with _LOCK:
+        lines = path.read_text(encoding="utf-8").splitlines()
+        # 找到该链接的条目标题行，改它后面最近的 反馈:: 行
+        hit = -1
+        for i, ln in enumerate(lines):
+            m = LINK_RE.match(ln)
+            if m and m.group(2) == link:
+                hit = i
+                break
+        if hit < 0:
+            return False
+        for j in range(hit + 1, min(hit + 8, len(lines))):
+            if LINK_RE.match(lines[j]):
+                break
+            fm = FB_RE.match(lines[j])
+            if fm:
+                lines[j] = f"反馈:: {token}" if token else "反馈::"
+                break
+        else:
+            return False
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return True
 
 
 def load_source_bias(cfg):

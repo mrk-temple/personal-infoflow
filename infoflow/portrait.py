@@ -1,8 +1,9 @@
 import pathlib
 import urllib.parse
-import urllib.request
 
-from .client import chat, resolve
+from . import http
+from .client import chat
+from .config import resolve
 
 PROMPT_SYS = """把下面这份"兴趣画像"提炼成一句用于 AI 绘画的英文提示词。
 要求：
@@ -38,9 +39,7 @@ def generate_portrait(client, cfg, profile):
         "model": p.get("model", "flux"),
     })
     url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}?{params}"
-    req = urllib.request.Request(url, headers={"User-Agent": "infoflow/0.1"})
-    with urllib.request.urlopen(req, timeout=180) as resp:
-        data = resp.read()
+    data, _ = http.get_bytes(url, timeout=180)
 
     base = pathlib.Path(resolve(p["output_path"]))
     base.parent.mkdir(parents=True, exist_ok=True)

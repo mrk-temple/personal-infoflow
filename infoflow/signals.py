@@ -1,7 +1,7 @@
 import json
 import pathlib
 
-from .client import resolve
+from .config import resolve
 
 CHAT_EXTS = {".json", ".md", ".txt"}
 CAP_EXTS = {".md", ".txt"}

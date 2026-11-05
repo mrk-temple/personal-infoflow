@@ -1,9 +1,12 @@
-import os
+import logging
 import pathlib
 
-from .client import chat, resolve
+from .client import chat
+from .config import resolve
 from .feedback import feedback_for_profile
 from .signals import extra_profile_context
+
+log = logging.getLogger(__name__)
 
 PROFILE_SYS = """你在为一个人建立"兴趣画像"。材料可能来自多个来源：
 - 个人笔记：代表他的知识结构与长期兴趣（注意：笔记里写得很透的基础内容，恰恰是他已熟知、不必再推荐的）
@@ -52,9 +55,9 @@ def build_profile(client, cfg):
 
     extra, has_chat, has_cap = extra_profile_context(cfg)
     if has_chat:
-        print("  纳入信号：AI 对话记录")
+        log.info("  纳入信号：AI 对话记录")
     if has_cap:
-        print("  纳入信号：推送 / 保存捕获")
+        log.info("  纳入信号：推送 / 保存捕获")
 
     profile = chat(
         client,
@@ -66,7 +69,7 @@ def build_profile(client, cfg):
     out = pathlib.Path(resolve(cfg["profile"]["cache_path"]))
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(profile, encoding="utf-8")
-    print(f"  已读入 {n} 篇笔记，画像写入 {out}")
+    log.info("  已读入 %d 篇笔记，画像写入 %s", n, out)
     return profile
 
 

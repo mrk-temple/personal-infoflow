@@ -1,8 +1,8 @@
-import json
 import hashlib
+import json
 import pathlib
 
-from .client import resolve
+from .config import resolve
 
 _MODEL = None  # fastembed 模型懒加载（加载较慢，复用）
 
@@ -59,19 +59,14 @@ def _fastembed(cfg, texts):
 
 
 def _ollama(cfg, texts):
-    import urllib.request
+    from . import http
     e = _cfg(cfg)
     base = e.get("ollama_url", "http://localhost:11434").rstrip("/")
     model = e.get("model", "bge-m3")
     out = []
     for t in texts:
-        req = urllib.request.Request(
-            f"{base}/api/embeddings",
-            data=json.dumps({"model": model, "prompt": t}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=60) as r:
-            out.append(json.loads(r.read())["embedding"])
+        resp = http.post_json(f"{base}/api/embeddings", {"model": model, "prompt": t}, timeout=60)
+        out.append(resp["embedding"])
     return out
 
 

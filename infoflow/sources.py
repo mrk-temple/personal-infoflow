@@ -1,13 +1,14 @@
+import logging
 import re
-import json
 import time
 import urllib.parse
-import urllib.request
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 import feedparser
 
-UA = {"User-Agent": "infoflow/0.1 (personal feed)"}
+from . import http
+
+log = logging.getLogger(__name__)
 
 
 def _within_days(entry, days):
@@ -19,9 +20,7 @@ def _within_days(entry, days):
 
 
 def _get_json(url):
-    req = urllib.request.Request(url, headers=UA)
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode("utf-8", "ignore"))
+    return http.get_json(url)
 
 
 # ---- 各类源的适配器：都返回 {title, link, summary, source} 列表 ----
@@ -146,10 +145,8 @@ def _resolve_handle(handle):
     """把 @handle 解析成 channel_id（抓频道页提取）。"""
     h = handle.lstrip("@")
     try:
-        req = urllib.request.Request(f"https://www.youtube.com/@{h}",
-                                     headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=20) as r:
-            html = r.read(800000).decode("utf-8", "ignore")
+        html, _ = http.get_text(f"https://www.youtube.com/@{h}",
+                                timeout=20, ua=http.BROWSER_UA, max_bytes=800000)
         m = _CID_RE.search(html) or re.search(r"/channel/(UC[0-9A-Za-z_\-]{20,})", html)
         return m.group(1) if m else None
     except Exception:
@@ -165,7 +162,7 @@ def from_youtube(spec, cfg):
         if cid:
             targets.append(("channel_id", cid))
         else:
-            print(f"  [youtube] 解析不了 handle {h}，跳过")
+            log.warning("  [youtube] 解析不了 handle %s，跳过", h)
     out = []
     for kind, ident in targets:
         d = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?{kind}={ident}")
@@ -236,7 +233,7 @@ def gather(cfg):
             continue
         fn = ADAPTERS.get(spec.get("type"))
         if not fn:
-            print(f"  跳过未知来源类型：{spec.get('type')}")
+            log.warning("  跳过未知来源类型：%s", spec.get("type"))
             continue
         try:
             kept = 0
@@ -245,8 +242,8 @@ def gather(cfg):
                     seen.add(it["link"])
                     items.append(it)
                     kept += 1
-            print(f"  [{spec['type']}] {_label(spec)} → {kept} 条")
+            log.info("  [%s] %s → %d 条", spec["type"], _label(spec), kept)
         except Exception as e:
-            print(f"  [{spec.get('type')}] {_label(spec)} 抓取失败（跳过）：{e}")
+            log.warning("  [%s] %s 抓取失败（跳过）：%s", spec.get("type"), _label(spec), e)
 
     return items

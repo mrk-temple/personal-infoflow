@@ -1,8 +1,8 @@
 import pathlib
-from datetime import date
 from collections import defaultdict
+from datetime import date
 
-from .client import resolve
+from .config import resolve
 from .feedback import load_adaptive_ratio
 
 

@@ -1,24 +1,52 @@
 #!/usr/bin/env python3
-"""Hermes skill 的薄入口：在 personal-infoflow 仓库里用配好的 venv 跑核心管线。
+"""personal-infoflow 的可移植入口（给偏好直接调 Python 脚本的 agent，如 Hermes）。
 
-需要两个环境变量：
-    INFOFLOW_HOME    指向 personal-infoflow 仓库根目录
-    INFOFLOW_PYTHON  指向已装好依赖的虚拟环境的 python（如 ~/infoflow-venv/bin/python）
+与 run.sh 等价：自动解析仓库根与解释器，把 CLI 参数透传给 ``python -m infoflow``。
+
+仓库根解析顺序：INFOFLOW_HOME → 脚本在仓库内的相对位置 → install.sh 写的 home_path。
+解释器解析顺序：INFOFLOW_PYTHON → <repo>/.venv/bin/python → 当前 sys.executable。
 """
 import os
-import sys
 import subprocess
+import sys
+from pathlib import Path
 
-home = os.environ.get("INFOFLOW_HOME")
-if not home or not os.path.isdir(home):
-    sys.exit("INFOFLOW_HOME 未设置或无效。请指向 personal-infoflow 仓库根目录。")
+SCRIPT_DIR = Path(__file__).resolve().parent
 
-py = os.environ.get("INFOFLOW_PYTHON")
-if not py:
-    sys.exit("INFOFLOW_PYTHON 未设置。请指向已装好依赖的虚拟环境的 python"
-             "（如 ~/infoflow-venv/bin/python）。不要用系统 python，也不要在仓库里新建环境。")
-if not os.path.isfile(py):
-    sys.exit(f"INFOFLOW_PYTHON 指向的解释器不存在：{py}")
 
-cmd = [py, "-m", "infoflow.main", *sys.argv[1:]]
-sys.exit(subprocess.call(cmd, cwd=home))
+def resolve_home() -> Path:
+    env = os.environ.get("INFOFLOW_HOME")
+    if env and (Path(env) / "infoflow").is_dir():
+        return Path(env)
+    cand = SCRIPT_DIR.parents[2]  # <repo>/skill/personal-infoflow/scripts → <repo>
+    if (cand / "infoflow").is_dir():
+        return cand
+    hp = SCRIPT_DIR / "home_path"
+    if hp.is_file():
+        p = Path(hp.read_text(encoding="utf-8").strip())
+        if (p / "infoflow").is_dir():
+            return p
+    sys.exit(
+        "找不到 personal-infoflow 仓库根。\n"
+        "请设 INFOFLOW_HOME 指向仓库根目录，或在仓库里运行 skill/personal-infoflow/install.sh。"
+    )
+
+
+def resolve_python(home: Path) -> str:
+    env = os.environ.get("INFOFLOW_PYTHON")
+    if env:
+        if not Path(env).is_file():
+            sys.exit(f"INFOFLOW_PYTHON 指向的解释器不存在：{env}")
+        return env
+    venv = home / ".venv" / "bin" / "python"
+    return str(venv) if venv.is_file() else sys.executable
+
+
+def main():
+    home = resolve_home()
+    py = resolve_python(home)
+    sys.exit(subprocess.call([py, "-m", "infoflow", *sys.argv[1:]], cwd=home))
+
+
+if __name__ == "__main__":
+    main()

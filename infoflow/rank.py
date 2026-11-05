@@ -1,5 +1,5 @@
 from .client import chat, extract_json
-from .feedback import load_source_bias, load_keyword_bias, title_keywords
+from .feedback import load_keyword_bias, load_source_bias, title_keywords
 
 RANK_SYS = """你是为特定用户做内容筛选的助手。给你这位用户的"兴趣画像"和一批候选文章。
 为每篇文章打两个分（都是 0-100）：

@@ -2,10 +2,10 @@ import json
 import math
 import pathlib
 
-from .client import resolve
+from .config import resolve
 from .embed import embed_texts
+from .feedback import load_state
 from .signals import collect_captures
-from .feedback import _state
 
 
 def _cos(a, b):
@@ -71,7 +71,7 @@ def _load_anchors(cfg):
 
 def build_anchors(cfg):
     """锚点 = 你点过"好"的条目标题 + 主动保存的捕获内容。它们代表"你真正喜欢的"。"""
-    liked = _state(cfg).get("liked", [])
+    liked = load_state(cfg).get("liked", [])
     texts = list(liked)
     cap = collect_captures(cfg).strip()
     if cap:
