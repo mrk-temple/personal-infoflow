@@ -3,7 +3,33 @@
 本项目的所有显著改动记录于此。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)，
 版本遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.3.0] - 2026-11-06
+
+### Fixed
+
+- Reconcile changed, cleared and deleted feedback by date/link; repair legacy duplicate records and recalculate all learned state. Fixes #1.
+- Update feedback beyond short item sections, create independent state directories, and share a Chinese/English Markdown parser with the reader.
+- Mark only selected duplicate clusters seen; malformed/incomplete model output no longer silently consumes candidates.
+- Use bounded RSS/full-text requests and UTC feed dates; persist local state atomically and report corrupt JSON without replacing it.
+- Keep mutation APIs POST-only and reject cross-origin requests with bounded JSON bodies.
+
+### Added
+
+- Full English/Chinese UI and READMEs; persistent warm-paper/monochrome themes and compact reading controls.
+- User-selectable DeepSeek, Kimi, MiMo, Qwen, OpenAI, native Anthropic, compatible service or signed-in Codex CLI. Explicit providers never borrow another provider's credentials.
+- Persisted local settings for the reading ratio, optional adaptation, story/source limits, sources, models and image backends. Daily archives are preserved.
+- Search, source filters, history selection, read/unread, cross-edition read later and keyboard controls.
+- Allowlisted, retry-safe Telegram capture plus manual capture; local implicit preferences remain opt-in and weaker than explicit ratings.
+- Long-term/recent profile layers, configurable signal decay and exclusions for generated notes.
+- Optional image API, Codex CLI or local SD/Forge; timestamped PNG archives, profile preview and App handoff/import.
+- Real bilingual feed/CLI screenshots and a reproducible public-note demo configuration.
+
+### Migration
+
+- Relative state paths now follow the config file. Retain explicit old `infoflow/data/` paths or copy state to config-adjacent `data/`.
+- Refresh the profile once to rebuild the older feedback-containing cache. Back up the vault and state before upgrading.
+
+## Earlier Web preview / 既有 Web 功能
 
 ### 新增：Web 界面
 

@@ -4,13 +4,16 @@ from datetime import date
 
 from .config import resolve
 from .feedback import load_adaptive_ratio
+from .storage import LOCK, write_text
 
 
-def write_digest(cfg, ranked):
+def write_digest(cfg, ranked, picked_out=None):
     d = cfg["digest"]
     max_items = d["max_items"]
     max_per_source = d.get("max_per_source", 0)
-    ratio = load_adaptive_ratio(cfg) or d.get("exploration_ratio", 0.7)  # D2 自适应
+    ratio = load_adaptive_ratio(cfg)
+    if ratio is None:
+        ratio = d.get("exploration_ratio", 0.7)
     min_rel = d.get("min_score", 0)
     n_explore = round(max_items * ratio)
     n_main = max_items - n_explore
@@ -52,6 +55,9 @@ def write_digest(cfg, ranked):
     n_rel = sum(1 for p in picked if p["bucket"] == "rel")
     n_exp = len(picked) - n_rel
     picked.sort(key=lambda x: x["score"], reverse=True)
+    if picked_out is not None:
+        picked_out.extend(picked)
+    en = cfg.get("language") == "en"
 
     from datetime import datetime
     today = date.today().isoformat()
@@ -64,12 +70,13 @@ def write_digest(cfg, ranked):
     lines = []
     if appending:
         # 同一天再次运行：追加到已有文件底部，不覆盖
-        lines += ["", "---", "", f"## 🕐 {now} 追加"]
+        lines += ["", "---", "", f"## 🕐 {now} " + ("Update" if en else "追加")]
     else:
         lines += [
-            f"# 信息简报 {today}",
+            f"# {'Personal InfoFlow' if en else '信息简报'} {today}",
             "",
-            "标注方法：在每条的 `反馈::` 后写 好 或 差，下次运行自动学习。",
+            ("Write good or bad after `Feedback::` to teach the next run." if en else
+             "标注方法：在每条的 `反馈::` 后写 好 或 差，下次运行自动学习。"),
         ]
         note = cfg.get("portrait", {}).get("note_path")
         if note:
@@ -77,26 +84,33 @@ def write_digest(cfg, ranked):
 
     lines += [
         "",
-        f"{now} 本轮：精选 {len(picked)} 条（贴合 {n_rel} · 拓展 {n_exp}），"
-        f"覆盖 {len(per_source)} 个来源，拓展比例 {ratio}。",
+        (f"{now} Edition: {len(picked)} stories ({n_rel} relevant · {n_exp} explore), "
+         f"{len(per_source)} sources, exploration ratio {ratio}." if en else
+         f"{now} 本轮：精选 {len(picked)} 条（贴合 {n_rel} · 拓展 {n_exp}），"
+         f"覆盖 {len(per_source)} 个来源，拓展比例 {ratio}。"),
         "",
     ]
 
     for r in picked:
-        tag = " · 拓展" if r.get("bucket") == "explore" else ""
-        dup = f" · 也被 {r['dup_count'] - 1} 个其他源报道" if r.get("dup_count", 1) > 1 else ""
+        tag = (" · Explore" if en else " · 拓展") if r.get("bucket") == "explore" else ""
+        dup = ((f" · also in {r['dup_count'] - 1} other sources" if en else
+                f" · 也被 {r['dup_count'] - 1} 个其他源报道") if r.get("dup_count", 1) > 1 else "")
         mark = " 📄" if r.get("enriched") else ""
+        title = str(r["title"]).replace("\n", " ").replace("\r", " ")
+        source = str(r["source"]).replace("\n", " ").replace("\r", " ")
+        reason = "\n".join("> " + ln for ln in str(r["reason"]).splitlines())
         lines += [
-            f"## [{r['title']}]({r['link']})",
-            f"**{r['score']}**{tag} · {r['source']}{dup}{mark}",
+            f"## [{title}]({r['link']})",
+            f"**{r['score']}**{tag} · {source}{dup}{mark}",
             "",
-            f"> {r['reason']}",
+            reason,
             "",
-            "反馈:: ",
+            "Feedback:: " if en else "反馈:: ",
             "",
         ]
 
     text = "\n".join(lines)
-    with open(path, "a" if appending else "w", encoding="utf-8") as f:
-        f.write(text if appending else text + "\n")
+    with LOCK:
+        previous = path.read_text(encoding="utf-8") if path.exists() else ""
+        write_text(path, previous + text + "\n")
     return path, len(picked)

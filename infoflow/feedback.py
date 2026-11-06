@@ -1,17 +1,12 @@
-import json
 import pathlib
 import re
-import threading
 
+from .activity import implicit_signals
 from .config import resolve
+from .items import FB_RE, LINK_RE, parse_digest, valid_date
+from .items import verdict as _verdict  # noqa: F401 - compatibility for existing integrations
+from .storage import LOCK, decay_weight, read_json, utc_now, write_json, write_text
 
-POS = {"好", "赞", "+", "👍", "有用", "有价值", "good"}
-NEG = {"差", "噪音", "-", "👎", "无用", "没用", "bad"}
-
-LINK_RE = re.compile(r"^##\s+\[(.*?)\]\((.+?)\)\s*$")
-META_RE = re.compile(r"^\*\*\d+\*\*(.*)$")
-FB_RE = re.compile(r"^反馈::\s*(.*)$")
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9+\-]{2,}")
 STOP = set("the a an of to in for on and or is are be with you your this that it as at "
            "from by we our how why what new using use into about over under via".split())
@@ -22,17 +17,8 @@ def title_keywords(title):
             if t.lower() not in STOP and len(t) >= 4}
 
 
-def _verdict(token):
-    t = token.strip()
-    if t in POS:
-        return 1
-    if t in NEG:
-        return -1
-    return None
-
-
 def _paths(cfg):
-    s = cfg["state"]
+    s = cfg.get("state", {})
     return (
         pathlib.Path(resolve(s.get("feedback_log", "data/feedback_log.json"))),
         pathlib.Path(resolve(s.get("feedback_state", "data/feedback_state.json"))),
@@ -40,13 +26,7 @@ def _paths(cfg):
 
 
 def _load_json(p, default):
-    p = pathlib.Path(p)
-    if p.exists():
-        try:
-            return json.loads(p.read_text(encoding="utf-8"))
-        except Exception:
-            return default
-    return default
+    return read_json(p, default)
 
 
 def _state(cfg):
@@ -55,30 +35,9 @@ def _state(cfg):
 
 
 def _parse_digest(text):
-    items, cur = [], None
-    for line in text.splitlines():
-        m = LINK_RE.match(line)
-        if m:
-            cur = {"title": m.group(1), "link": m.group(2), "source": "", "bucket": "rel"}
-            continue
-        if cur and line.startswith("**"):
-            mm = META_RE.match(line)
-            if mm:
-                segs = [p.strip() for p in mm.group(1).split("·") if p.strip()]
-                cur["bucket"] = "explore" if any(s == "拓展" for s in segs) else "rel"
-                for s in segs:                       # source = 跳过"拓展"和"也被…"后的第一段
-                    if s == "拓展" or s.startswith("也被"):
-                        continue
-                    cur["source"] = s
-                    break
-            continue
-        fm = FB_RE.match(line)
-        if fm and cur:
-            v = _verdict(fm.group(1))
-            if v is not None:
-                items.append({**cur, "verdict": v})
-            cur = None
-    return items
+    return [{k: it[k] for k in ("title", "link", "source", "bucket")} | {
+        "verdict": 1 if it["verdict"] == "pos" else -1
+    } for it in parse_digest(text) if it["verdict"]]
 
 
 def _prec(pos, tot):
@@ -96,7 +55,8 @@ def _aggregate(cfg, log):
     pos = neg = 0
     for e in log:
         v, s, b = e["verdict"], e.get("source", ""), e.get("bucket", "rel")
-        src_net[s] = src_net.get(s, 0) + v
+        weight = decay_weight(e.get("updated_at") or e.get("date"), fb.get("half_life_days", 0))
+        src_net[s] = src_net.get(s, 0) + v * weight
         src_tot[s] = src_tot.get(s, 0) + 1
         btot[b] = btot.get(b, 0) + 1
         if v > 0:
@@ -106,14 +66,28 @@ def _aggregate(cfg, log):
         else:
             neg += 1
         for k in title_keywords(e.get("title", "")):
-            kw_net[k] = kw_net.get(k, 0) + v
+            kw_net[k] = kw_net.get(k, 0) + v * weight
 
-    source_bias = {s: max(-cap, min(cap, n * step)) for s, n in src_net.items() if n}
-    keyword_bias = {k: max(-kcap, min(kcap, n * kstep)) for k, n in kw_net.items() if n}
+    source_bias = {s: round(max(-cap, min(cap, n * step)), 2) for s, n in src_net.items() if n}
+    keyword_bias = {k: round(max(-kcap, min(kcap, n * kstep)), 2) for k, n in kw_net.items() if n}
+    implicit = implicit_signals(cfg, log)
+    implicit_src, implicit_kw = {}, {}
+    for e in implicit:
+        s, weight = e.get("source", ""), e["weight"]
+        implicit_src[s] = implicit_src.get(s, 0) + weight
+        for k in title_keywords(e.get("title", "")):
+            implicit_kw[k] = implicit_kw.get(k, 0) + weight
+    # Reading signals have their own small cap; they never alter explicit precision statistics.
+    for s, weight in implicit_src.items():
+        source_bias[s] = round(min(cap, source_bias.get(s, 0) + min(3, weight * step)), 2)
+    for k, weight in implicit_kw.items():
+        keyword_bias[k] = round(min(kcap, keyword_bias.get(k, 0) + min(1.5, weight * kstep)), 2)
     keyword_bias = dict(sorted(keyword_bias.items(), key=lambda kv: abs(kv[1]), reverse=True)[:60])
 
-    liked = [e["title"] for e in reversed(log) if e["verdict"] > 0][:keep]
-    disliked = [e["title"] for e in reversed(log) if e["verdict"] < 0][:keep]
+    recent = [e for e in sorted(log, key=lambda e: e.get("updated_at") or e.get("date", ""), reverse=True)
+              if decay_weight(e.get("updated_at") or e.get("date"), fb.get("half_life_days", 0)) >= .1]
+    liked = [e["title"] for e in recent if e["verdict"] > 0][:keep]
+    disliked = [e["title"] for e in recent if e["verdict"] < 0][:keep]
 
     quality = {
         "overall": _prec(pos, pos + neg),
@@ -142,35 +116,50 @@ def _aggregate(cfg, log):
     return {
         "source_bias": source_bias, "keyword_bias": keyword_bias,
         "liked": liked, "disliked": disliked, "quality": quality,
-        "low_sources": low_sources, "adaptive_ratio": round(ratio, 2),
+        "low_sources": low_sources, "adaptive_ratio": round(ratio, 2), "base_ratio": base,
+        "implicit_count": len(implicit),
     }
 
 
 def collect_feedback(cfg):
+    """Reconcile each readable edition by (date, link), including edits and deletions.
+
+    Missing/archived editions keep their history. Any unreadable edition aborts before
+    writing, so a transient file error cannot erase feedback. Old duplicate keys collapse.
+    """
+    with LOCK:
+        return _collect_feedback(cfg)
+
+
+def _collect_feedback(cfg):
     out_dir = pathlib.Path(resolve(cfg["digest"]["output_dir"]))
     log_path, state_path = _paths(cfg)
-    log = _load_json(log_path, [])
-    seen = {(e["date"], e["link"]) for e in log}
-
-    new = 0
+    old = {(e["date"], e["link"]): e for e in _load_json(log_path, [])}
+    current = dict(old)
     if out_dir.exists():
         for f in sorted(out_dir.glob("*.md")):
-            if not DATE_RE.match(f.stem):
+            if not valid_date(f.stem):
                 continue
-            for it in _parse_digest(f.read_text(encoding="utf-8")):
+            # Read the complete file before dropping that date's previous records.
+            text = f.read_text(encoding="utf-8")
+            current = {key: e for key, e in current.items() if key[0] != f.stem}
+            for it in _parse_digest(text):
                 key = (f.stem, it["link"])
-                if key in seen:
-                    continue
-                seen.add(key)
-                log.append({"date": f.stem, **it})
-                new += 1
-
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_path.write_text(json.dumps(log, ensure_ascii=False, indent=1), encoding="utf-8")
-
+                entry = {"date": f.stem, **it}
+                previous = old.get(key)
+                if previous and all(previous.get(k) == v for k, v in entry.items()):
+                    current[key] = previous
+                else:
+                    current[key] = {**entry, "updated_at": utc_now()}
+    new = len(current.keys() - old.keys())
+    removed = len(old.keys() - current.keys())
+    updated = sum(old[k] != current[k] for k in current.keys() & old.keys())
+    log = [current[key] for key in sorted(current)]
     state = _aggregate(cfg, log)
-    state_path.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
-    return {"new": new, **state}
+    write_json(log_path, log)
+    write_json(state_path, state)
+    return {"new": new, "updated": updated, "removed": removed,
+            "changed": new + updated + removed, **state}
 
 
 def load_state(cfg):
@@ -178,7 +167,7 @@ def load_state(cfg):
     return _state(cfg)
 
 
-_LOCK = threading.Lock()
+_LOCK = LOCK
 
 
 def set_verdict(cfg, date, link, verdict):
@@ -188,30 +177,29 @@ def set_verdict(cfg, date, link, verdict):
     下次 collect_feedback 自然学到。返回是否真的改了文件。
     """
     token = {"pos": "好", "neg": "差", None: ""}[verdict]
+    if not valid_date(date):
+        return False
     path = pathlib.Path(resolve(cfg["digest"]["output_dir"])) / f"{date}.md"
     if not path.exists():
         return False
     with _LOCK:
         lines = path.read_text(encoding="utf-8").splitlines()
-        # 找到该链接的条目标题行，改它后面最近的 反馈:: 行
-        hit = -1
-        for i, ln in enumerate(lines):
-            m = LINK_RE.match(ln)
-            if m and m.group(2) == link:
-                hit = i
-                break
-        if hit < 0:
+        hits = [i for i, ln in enumerate(lines) if (m := LINK_RE.match(ln)) and m[2] == link]
+        if not hits:
             return False
-        for j in range(hit + 1, min(hit + 8, len(lines))):
-            if LINK_RE.match(lines[j]):
-                break
-            fm = FB_RE.match(lines[j])
-            if fm:
-                lines[j] = f"反馈:: {token}" if token else "反馈::"
-                break
-        else:
-            return False
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        for hit in reversed(hits):
+            end = next((j for j in range(hit + 1, len(lines)) if lines[j].startswith("## ")), len(lines))
+            found = next((j for j in range(hit + 1, end) if FB_RE.match(lines[j])), None)
+            label = "Feedback" if any(FB_RE.match(ln) and ln.lower().startswith("feedback")
+                                      for ln in lines) else "反馈"
+            value = ({"pos": "good", "neg": "bad", None: ""}[verdict]
+                     if label == "Feedback" else token)
+            replacement = f"{label}::" + (f" {value}" if value else "")
+            if found is None:
+                lines.insert(end, replacement)
+            else:
+                lines[found] = replacement
+        write_text(path, "\n".join(lines) + "\n")
     return True
 
 

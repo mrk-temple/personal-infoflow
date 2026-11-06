@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "personal-infoflow"
-version = "0.2.0"
+version = "0.3.0"
 description = "长在 Obsidian 里的个性化信息流：建画像、多源抓取、语义去重、3:7 排序、反馈进化。"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# 本地向量层（语义去重 +“更多类似”）。注意 fastembed 需要 numpy<2。
+# 本地向量层（语义去重 +“更多类似”），首次使用会下载模型。
 embed = ["fastembed"]
 # 开发/测试。
 dev = ["pytest", "ruff"]
@@ -32,6 +32,7 @@ packages = ["infoflow", "infoflow.webapp"]
 [tool.setuptools.package-data]
 # 运行期状态（data/）不随包分发——它是用户数据，已在 .gitignore 里。
 infoflow = []
+"infoflow.webapp" = ["*.html", "*.css", "*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

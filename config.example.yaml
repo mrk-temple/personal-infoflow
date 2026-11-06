@@ -1,24 +1,48 @@
-# ============ 个人信息流 MVP 配置 ============
+# Personal InfoFlow — paths are relative to this config file, or absolute.
+
+language: zh-CN             # zh-CN / en；Web 切换会用于下一次生成的理由
 
 vault_path: "~/Obsidian/MyVault"
 
 models:
-  profile: "deepseek-v4-pro"
-  rank: "deepseek-v4-flash"
+  # codex / deepseek / kimi / mimo / qwen / openai / anthropic / custom / auto
+  # API 方式请填写自己能使用的模型 ID；也可在 Web 设置里选择。
+  provider: codex
+  profile: ""
+  rank: ""
+  base_url: ""              # 留空用该供应商默认值；地区/专属计划需覆盖
+  codex_command: codex       # 可执行文件名或绝对路径
+  codex_model: ""           # 留空用已登录 CLI 自己的模型配置
+  cli_workdir: data/codex-jobs
+  timeout: 240
 
 profile:
   cache_path: "data/profile.md"
   max_chars: 200000
   exclude: [".trash", ".obsidian", "templates"]
+  refresh_days: 7           # 长期画像自动刷新周期；0 = 仅手动刷新
+  recent_days: 30           # 笔记中“最近项目”与“长期背景”的时间分界
 
 # ===== 额外信号：让画像不只看笔记 =====
 signals:
   # AI 聊天记录导出文件夹。Claude：设置里导出数据，把得到的 conversations.json 放进来。留空跳过。
   chat_dir: ""
   chat_max_chars: 60000
-  # 推送捕获——留到 skill 阶段做（届时用 Telegram 网关自动捕获）。现在留空即可。
+  # 可选：额外导入本地保存的 md/txt 文件或目录；Telegram 捕获会自动合并。
   capture_path: ""
   capture_max_chars: 20000
+  half_life_days: 30        # 对话/捕获信号衰减，低于初始权重 10% 后不再加入画像
+
+telegram:
+  enabled: false           # 开启后每轮自动接收最多 100 条更新；也可单独 --telegram-sync
+  token_env: TELEGRAM_BOT_TOKEN
+  allowed_chat_ids: []      # 必填白名单，例如 [123456789]；只接收，不发送消息
+  max_entries: 1000
+
+reading:
+  implicit_feedback: false # 明确开启后，收藏/前台可见停留才成为较弱正向信号
+  half_life_days: 30
+  max_entries: 5000         # 本地阅读与稍后读记录总上限
 
 # ===== 获取层：多类型源，面要宽 =====
 # type: rss / hackernews / reddit / arxiv / googlenews / github
@@ -117,7 +141,7 @@ cluster:                    # C1：标题高度相似的视为同一事件，只
   title_threshold: 0.82
 
 embedding:                  # B1：本地向量层（语义去重 + "更多类似"）
-  enabled: true             # 需先 pip install fastembed（首次会下载约 130MB 模型）
+  enabled: false            # 显式开启后才用；需安装 embed 可选依赖，首次会下载模型
   provider: "fastembed"     # fastembed（轻量，默认）| ollama
   model: "BAAI/bge-small-en-v1.5"   # 内容以英文为主够用；中文多可换多语言模型或用 ollama 的 bge-m3
   # ollama_url: "http://localhost:11434"   # provider=ollama 时用
@@ -125,6 +149,7 @@ embedding:                  # B1：本地向量层（语义去重 + "更多类�
   liked_boost_max: 12       # 与你点过"好"的内容越像，最多加多少分（"更多类似"）
   cache_path: "data/emb_cache.json"
   anchor_path: "data/anchors.json"
+  model_cache_path: "data/models"  # 模型缓存也跟随 config，避免落到系统默认目录
 
 rank:
   batch_size: 12
@@ -139,6 +164,7 @@ feedback:
   min_source_samples: 4     # D2：判定"低命中来源"所需的最少样本
   source_drop_precision: 0.34  # D2：命中率低于此值就建议下线
   adaptive_exploration: true   # D2：根据拓展位命中率自动微调 3:7 比例
+  half_life_days: 90        # 明确反馈的偏置半衰期；0 = 不衰减；命中率仍按真实标注计数
 
 digest:
   output_dir: "~/Obsidian/MyVault/信息简报"
@@ -147,8 +173,12 @@ digest:
   max_per_source: 3         # 每个来源最多几条；0 = 不限
   exploration_ratio: 0.7    # 开眼界占比：0.7 = 3 贴合 : 7 拓展
 
-portrait:                   # 本地管线不再出图（Pollinations 已收费 402）。
-  enabled: false            # 接 Hermes 后由 Hermes 的 image_generate 出图；纯本地想要图再设 true
+portrait:                   # 可选 Codex 配图；需本机已登录且有内置生图能力。
+  enabled: false            # 默认不生成；--portrait 单独生成，或使用 prepare/import 交接
+  provider: none             # none / api / codex / local
+  base_url: ""              # API: https://.../v1；本地: http://127.0.0.1:7860
+  codex_command: codex      # CLI 可执行文件名或绝对路径，不是一整句 shell 命令
+  timeout: 300
   output_path: "~/Obsidian/MyVault/信息简报/portrait.png"
   note_path: "~/Obsidian/MyVault/信息简报/兴趣画像.md"
   # 可选：一句话给配图定调，模型会优先体现。留空则纯靠画像自动生成。
@@ -156,7 +186,7 @@ portrait:                   # 本地管线不再出图（Pollinations 已收费 
   style_hint: ""
   # 可选：直接锁定整句英文提示词（填了就跳过模型生成，控制力最强）
   prompt_override: ""
-  model: "flux"
+  model: "gpt-image-2"
   width: 1024
   height: 1024
 
@@ -164,3 +194,6 @@ state:
   seen_path: "data/seen.json"
   feedback_log: "data/feedback_log.json"
   feedback_state: "data/feedback_state.json"
+  activity_path: "data/activity.json"
+  captures_path: "data/captures.json"
+  settings_path: "data/settings.json"

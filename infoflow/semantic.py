@@ -45,6 +45,7 @@ def cluster_semantic(items, threshold=0.86):
         rep = dict(max(c["members"], key=lambda m: len(m.get("summary", ""))))
         rep["dup_count"] = len(c["members"])
         rep["dup_sources"] = sorted({m.get("source", "") for m in c["members"]})
+        rep["dup_links"] = sorted({m["link"] for m in c["members"] if m.get("link")})
         reps.append(rep)
     return reps
 

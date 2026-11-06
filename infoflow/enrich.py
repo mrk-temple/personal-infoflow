@@ -41,25 +41,20 @@ def _strip_html(html):
 def fetch_fulltext(url, timeout=20, cap=4000):
     if not url.startswith(("http://", "https://")):
         return ""
-    if trafilatura:
-        try:
-            downloaded = trafilatura.fetch_url(url)
-            if downloaded:
-                txt = trafilatura.extract(downloaded, include_comments=False) or ""
-                if txt.strip():
-                    return txt[:cap]
-        except Exception:
-            pass
     try:
         html, ct = http.get_text(url, timeout=timeout, ua=http.BROWSER_UA, max_bytes=1_500_000)
         if ct and "html" not in ct and "xml" not in ct:
             return ""
+        if trafilatura:
+            txt = trafilatura.extract(html, include_comments=False) or ""
+            if txt.strip():
+                return txt[:cap]
         return _strip_html(html)[:cap]
     except Exception:
         return ""
 
 
-def enrich(items, cfg):
+def enrich(items, cfg, log=print):
     """给排在前面的若干条抓正文，替换掉截断的 RSS 摘要。limit 控成本/时间。"""
     f = cfg.get("fetch", {})
     if not f.get("full_text"):
@@ -80,7 +75,6 @@ def enrich(items, cfg):
         if txt and len(txt) > len(it.get("summary", "")):
             it["summary"] = txt
             it["enriched"] = True
-        print(f"  抓正文 {done}/{min(limit, len(items))}", end="\r")
-    if done:
-        print()
+        label = "Article text" if cfg.get("language") == "en" else "抓正文"
+        log(f"  {label} {done}/{min(limit, len(items))}")
     return items

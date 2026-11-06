@@ -7,7 +7,7 @@ import json
 import urllib.request
 
 # 抓 API/RSS 用的中性 UA；抓网页正文时有的站点对 UA 挑剔，调用方可自带 headers。
-DEFAULT_UA = "infoflow/0.2 (personal feed)"
+DEFAULT_UA = "infoflow/0.3 (personal feed)"
 BROWSER_UA = "Mozilla/5.0 (infoflow personal feed)"
 
 
@@ -33,7 +33,7 @@ def get_text(url, *, timeout=30, headers=None, ua=DEFAULT_UA, max_bytes=None, en
 
 def get_json(url, *, timeout=30, headers=None, ua=DEFAULT_UA):
     """GET 并解析 JSON。"""
-    text, _ = get_text(url, timeout=timeout, headers=headers, ua=ua)
+    text, _ = get_text(url, timeout=timeout, headers=headers, ua=ua, max_bytes=5_000_000)
     return json.loads(text)
 
 
@@ -46,4 +46,4 @@ def post_json(url, payload, *, timeout=60, headers=None, ua=DEFAULT_UA):
         url, data=json.dumps(payload).encode("utf-8"), headers=h
     )
     with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read())
+        return json.loads(r.read(5_000_000))

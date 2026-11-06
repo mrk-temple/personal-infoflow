@@ -1,21 +1,25 @@
-# 画像配图规范（可选）
+# Optional profile illustrations
 
-管线只负责更新画像**文字**（`<仓库>/infoflow/data/profile.md`）。出图由当前 agent 自带的
-图像生成工具完成（本地管线接的 Pollinations 已收费，`portrait.enabled` 保持 false）。
+Use the backend the user selected in `portrait.provider`; keep it optional:
 
-当用户要"新画像 / 重建画像 / 给画像配图"，且 agent 有可用图像工具时，在跑完
-`--refresh-profile` 之后：
+- `none`: no generation.
+- `api`: the user's image API endpoint/model and `IMAGE_API_KEY`.
+- `codex`: the signed-in Codex CLI, using its built-in `gpt-image-2` tool when available.
+- `local`: an existing Automatic1111 / Forge service exposing `/sdapi/v1/txt2img`.
 
-1. 读 `infoflow/data/profile.md`，理解这个人**与信息、知识的关系是什么气质**
-   （构建者 / 编织者 / 探索者……）。
-2. 写一句**英文**绘画提示词：用场景、光线、象征物隐喻这种气质，**不要**罗列他在学的具体学科
-   或模型名（不要出现 textbook / ResNet / calculus 这类词），画面克制、有留白、不画真人肖像，
-   带风格词（minimal illustration, soft light, atmospheric）。
-3. 用图像工具按该提示词出图。
-4. 保存到 vault 的简报目录，文件名带时间戳：`<简报目录>/portrait-YYYYMMDD-HHMM.png`
-   （简报目录见 config.yaml 的 `digest.output_dir`）。
-5. 追加进成长档案 `<简报目录>/兴趣画像.md`：一段 `## 🕐 时间戳` + `![[portrait-时间戳.png]]`
-   + 提示词，**追加不覆盖**，让用户看到一张张的蜕变。
-6. 简短告诉用户出了新图、存在哪，并一句话说这次相比上次的变化。
+`--portrait` requests one illustration without fetching another digest. Ordinary
+profile refresh generates an image only when `portrait.enabled` is true. A prompt
+override skips the text-model prompt step; otherwise the configured text provider
+turns the interest profile into a restrained visual metaphor.
 
-没有可用图像工具就跳过——别尝试装/调本地出图。
+Archive each PNG with a unique timestamp under `portrait.output_path`'s directory,
+append the profile note and keep prior images. Do not replace a missing local model,
+CLI tool or quota with a paid service unless the user chooses it.
+
+If CLI automation lacks image generation, run `--portrait-prepare`, open its generated
+prompt in the Codex App, then import the completed PNG with `--portrait-import FILE`.
+This uses ordinary app/CLI authentication; do not read/copy OAuth tokens or create
+API keys to imitate subscription access.
+
+Verify that a real PNG was produced and archived. Report an unavailable tool or
+failed request honestly. Protocol/unit tests alone do not establish live account access.

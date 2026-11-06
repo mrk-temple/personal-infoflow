@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>个人信息日报 · Personal InfoFlow</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+  <script src="/settings.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#stories" data-i18n="skip">跳到简报</a>
+  <div class="topline">
+    <span><strong>PERSONAL INFOFLOW</strong> <span class="top-caption" data-i18n="localEdition">你的私人编辑部</span></span>
+    <div class="top-tools"><span id="connection" class="sr-only" role="status" data-i18n="connecting">连接中</span><div class="theme-options" role="group" aria-label="报纸颜色"><button data-theme="mono" aria-pressed="false" data-i18n="monoTheme">黑白报</button><button data-theme="warm" aria-pressed="true" data-i18n="warmTheme">暖纸报</button></div><button id="settings" data-i18n="settings">设置</button><button id="language" type="button" aria-label="Switch to English">English ↗</button></div>
+  </div>
+  <header class="masthead">
+    <div class="edition-stamp"><span class="date" id="today">—</span><p data-i18n="editionStamp">每日精选 · 持续生长</p></div>
+    <div class="masthead-copy"><p class="eyebrow">A LITTLE CLOSER. A LITTLE FURTHER.</p><h1 data-i18n="title">个人信息日报</h1><p class="intro" data-i18n="intro">从你的兴趣出发，往更大的世界去。</p></div>
+    <div class="masthead-aside"><span data-i18n="recipeLabel">我的阅读配方</span><div class="recipe"><b id="rel-ratio">3</b><small>:</small><b id="exp-ratio">7</b></div><p data-i18n="recipeCopy">贴合兴趣 / 开眼界</p></div>
+  </header>
+  <section class="command-panel" aria-label="Actions">
+    <p class="edition-note" data-i18n="editionNote">给阅读留一点时间。</p>
+    <div class="actions"><button id="profile" data-i18n="profile">兴趣画像</button><button id="collect" data-i18n="collect">同步反馈</button><button id="refresh" data-i18n="refresh">更新画像</button><button id="run" class="primary" data-i18n="generate">生成今日简报 ↗</button></div>
+  </section>
+  <p id="demo-label" hidden></p>
+  <section id="progress" class="run-progress" hidden aria-live="polite"><strong id="run-status"></strong><details id="run-details"><summary data-i18n="details">查看运行详情</summary><pre id="log"></pre></details></section>
+  <div class="summary"><span id="summary-count" aria-live="polite">—</span><span data-i18n="summaryHint">少一点噪音，多一点值得。</span></div>
+  <section class="reading-head">
+    <div><span>01 / READ</span><h2 id="reading-title" data-i18n="readingTitle">今天，读这些</h2></div>
+    <div class="filters" aria-label="Reading category"><button data-bucket="all" aria-pressed="true" data-i18n="all">全部</button><button data-bucket="rel" aria-pressed="false" data-i18n="relevant">贴合兴趣</button><button data-bucket="explore" aria-pressed="false" data-i18n="explore">开眼界</button></div>
+  </section>
+  <section class="reader-toolbar" aria-label="Filters">
+    <div class="view-tabs"><button data-view="all" aria-pressed="true" data-i18n="edition">本期</button><button data-view="unread" aria-pressed="false" data-i18n="unread">未读</button><button data-view="saved" aria-pressed="false" data-i18n="saved">稍后读</button></div>
+    <div class="search-tools"><label class="sr-only" for="search" data-i18n="searchLabel">搜索简报</label><input id="search" type="search" data-placeholder="searchPlaceholder" placeholder="搜索标题、理由…" autocomplete="off"><label class="sr-only" for="source" data-i18n="sourceLabel">按来源筛选</label><select id="source" aria-label="来源"><option value="" data-i18n="allSources">全部来源</option></select><label class="sr-only" for="edition-date" data-i18n="dateLabel">选择日期</label><select id="edition-date" aria-label="日期"></select></div>
+  </section>
+  <main id="stories" tabindex="-1" aria-label="Stories"></main>
+  <section class="empty" id="empty" hidden><h3 id="empty-title"></h3><p id="empty-copy"></p><button id="retry" hidden data-i18n="retry">重试</button></section>
+  <footer><strong data-i18n="footerBrand">私人编辑部 · 持续生长</strong><span data-i18n="feedbackHint">好／差可随时修改或清除，保存后立即同步。</span><span class="shortcuts" data-i18n="shortcuts">快捷键：/ 搜索 · J/K 浏览 · S 稍后读 · M 已读</span></footer>
+  <dialog id="profile-dialog" aria-labelledby="profile-title"><div class="dialog-head"><span class="eyebrow">02 / YOUR COMPASS</span><button id="close-profile" data-i18n="close">关闭 ×</button></div><h2 id="profile-title" data-i18n="profile">兴趣画像</h2><p class="dialog-intro" data-i18n="profileIntro">长期知识作为底色，最近的捕获与反馈持续调整方向。</p><div class="profile-facts" id="profile-facts"></div><img id="profile-image" alt="Profile illustration" hidden><div id="profile-text" class="profile-copy"></div><button id="make-portrait" data-i18n="makePortrait">生成画像配图</button><p class="privacy-note" data-i18n="privacy">阅读状态仅保存在本机；隐式偏好默认关闭。笔记与信号会在生成时发送给你配置的模型。</p></dialog>
+  <dialog id="settings-dialog" aria-labelledby="settings-title">
+    <div class="dialog-head"><span class="eyebrow">YOUR PAPER. YOUR RULES.</span><button id="close-settings" data-i18n="close">关闭 ×</button></div>
+    <h2 id="settings-title" data-i18n="settingsTitle">把报纸调成你的样子</h2>
+    <p class="dialog-intro" data-i18n="settingsIntro">选择自己的模型、阅读配方和消息来源。设置保存在本机，往期日报一直保留。</p>
+    <form id="settings-form">
+      <fieldset><legend data-i18n="readingRecipe">阅读配方</legend><label for="pref-ratio"><span data-i18n="explorationLabel">开眼界占比</span><output id="ratio-label"></output></label><input id="pref-ratio" type="range" min="0" max="100" step="5"><div class="form-grid"><label><span data-i18n="itemCount">每期条数</span><input id="pref-items" type="number" min="1" max="100" required></label><label><span data-i18n="sourceCap">每来源最多条数（0 不限）</span><input id="pref-source-cap" type="number" min="0" max="100" required></label></div><label class="check-label"><input id="pref-adaptive" type="checkbox"><span data-i18n="adaptiveLabel">根据明确反馈自动微调推荐比例</span></label><label class="check-label"><input id="pref-implicit" type="checkbox"><span data-i18n="implicitLabel">使用收藏与前台停留作为较弱的偏好信号</span></label></fieldset>
+      <fieldset><legend data-i18n="textEngine">文字与排序</legend><label><span data-i18n="providerLabel">模型供应商 / 运行方式</span><select id="pref-provider"></select></label><div id="api-options"><div class="form-grid"><label><span data-i18n="rankModel">排序模型 ID</span><input id="pref-rank" autocomplete="off"></label><label><span data-i18n="profileModel">画像模型 ID</span><input id="pref-profile" autocomplete="off"></label></div><label><span data-i18n="endpointLabel">API 地址（可覆盖默认地址）</span><input id="pref-endpoint" type="url" placeholder="https://..."></label><label><span id="key-label"></span><input id="pref-key" type="password" autocomplete="new-password" data-placeholder="keepKey" placeholder="留空保留已有密钥"></label></div><div id="cli-options" hidden><label><span data-i18n="cliPath">Codex CLI 可执行文件名或路径</span><input id="pref-cli" autocomplete="off" placeholder="codex"></label><label><span data-i18n="cliModel">CLI 模型（留空使用 CLI 默认值）</span><input id="pref-cli-model" autocomplete="off"></label><p class="field-note" data-i18n="cliNote">使用本机已登录的 Codex；不需要新的 API key，会占用账号已有用量。</p></div></fieldset>
+      <fieldset><legend data-i18n="imageEngine">可选配图</legend><label><span data-i18n="imageProvider">选择生图方式</span><select id="pref-image-provider"><option value="none" data-i18n="noImage">不配图</option><option value="api" data-i18n="imageApi">自己的生图 API（OpenAI 兼容）</option><option value="codex">Codex CLI · gpt-image-2</option><option value="local" data-i18n="imageLocal">本地 Stable Diffusion / Forge</option></select></label><div id="image-endpoint-options"><label><span data-i18n="imageEndpoint">生图服务地址</span><input id="pref-image-endpoint" type="url" placeholder="https://.../v1"></label><label><span data-i18n="imageModel">生图模型 ID / 本地 checkpoint（可留空）</span><input id="pref-image-model" autocomplete="off"></label></div><div id="image-key-options"><label>IMAGE_API_KEY<input id="pref-image-key" type="password" autocomplete="new-password" data-placeholder="keepKey"></label></div><div id="image-cli-options" hidden><label><span data-i18n="cliPath">Codex CLI 可执行文件名或路径</span><input id="pref-image-cli" autocomplete="off" placeholder="codex"></label></div><label class="check-label"><input id="pref-image-auto" type="checkbox"><span data-i18n="autoImage">更新画像时自动配图（也可在画像里手动生成）</span></label></fieldset>
+      <fieldset><legend data-i18n="sourceSettings">消息来源</legend><p class="field-note" data-i18n="sourceNote">可添加、关闭或移除来源，并设置每个来源的采集条数。不会删除已有日报。</p><div id="source-editor"></div><button type="button" id="add-source" data-i18n="addSource">＋ 添加来源</button></fieldset>
+      <p class="privacy-note" data-i18n="keyPrivacy">密钥仅保存到本机 .env.local，保存后不会返回浏览器。不要将它提交到 GitHub。</p>
+      <p id="settings-error" role="alert"></p><div class="dialog-actions"><button type="submit" id="save-settings" data-i18n="saveSettings">保存设置</button></div>
+    </form>
+  </dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

@@ -1,0 +1,36 @@
+# Live public-feed demo. Requires your installed, signed-in Codex CLI.
+language: zh-CN
+vault_path: sample-vault
+models:
+  provider: codex
+  profile: ""
+  rank: ""
+  codex_command: codex
+  cli_workdir: ../data/demo/codex-jobs
+profile:
+  cache_path: ../data/demo/profile.md
+sources:
+  - {type: hackernews, name: Hacker News, limit: 10}
+  - {type: rss, name: Quanta Magazine, url: "https://www.quantamagazine.org/feed/", limit: 6}
+  - {type: rss, name: Ars Technica, url: "https://feeds.arstechnica.com/arstechnica/index", limit: 6}
+fetch:
+  days: 30
+  full_text: true
+  full_text_limit: 2
+rank:
+  batch_size: 12
+digest:
+  output_dir: ../data/demo/digests
+  max_items: 6
+  max_per_source: 3
+  exploration_ratio: 0.7
+portrait:
+  enabled: false
+  provider: none
+state:
+  seen_path: ../data/demo/seen.json
+  feedback_log: ../data/demo/feedback_log.json
+  feedback_state: ../data/demo/feedback_state.json
+  activity_path: ../data/demo/activity.json
+  captures_path: ../data/demo/captures.json
+  settings_path: ../data/demo/settings.json

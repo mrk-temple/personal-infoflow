@@ -7,6 +7,8 @@ import os
 
 from openai import OpenAI
 
+from .providers import PROVIDERS, AnthropicClient, CodexClient, configured_key
+
 # 自动加载 .env（从当前目录向上找）。没装 python-dotenv 也不报错，
 # 这时就退回到读真实环境变量。
 try:
@@ -29,8 +31,18 @@ def _env(*names):
     return None
 
 
-def model_settings():
+def model_settings(cfg=None):
     """按供应商成组解析配置，防止 MiMo key 配上旧网关地址或模型。"""
+    models = (cfg or {}).get("models", {})
+    selected = models.get("provider", "auto")
+    if selected != "auto":
+        if selected not in PROVIDERS:
+            raise ValueError("Unknown model provider")
+        spec = PROVIDERS[selected]
+        prefix = selected.upper()
+        return {"provider": spec["label"], "id": selected, "key": configured_key(selected),
+                "base_url": models.get("base_url") or _env(prefix + "_BASE_URL") or spec["base_url"],
+                "model": None}
     mimo_key = _env("MIMO_API_KEY")
     if mimo_key:
         return {
@@ -38,28 +50,42 @@ def model_settings():
             "base_url": _env("MIMO_BASE_URL") or MIMO_BASE_URL,
             "model": _env("MIMO_MODEL") or MIMO_MODEL,
         }
-    key = _env("DEEPSEEK_API_KEY", "OPENAI_API_KEY")
+    deepseek_key = _env("DEEPSEEK_API_KEY")
+    if deepseek_key:
+        return {"provider": "DeepSeek", "key": deepseek_key,
+                "base_url": _env("DEEPSEEK_BASE_URL") or DEFAULT_BASE_URL,
+                "model": _env("DEEPSEEK_MODEL")}
+    for provider in ("kimi", "qwen", "anthropic", "custom"):
+        if configured_key(provider):
+            settings = model_settings({"models": {"provider": provider}})
+            settings["model"] = _env(provider.upper() + "_MODEL") or PROVIDERS[provider]["model"]
+            return settings
+    key = _env("OPENAI_API_KEY")
     return {
-        "provider": "DeepSeek" if _env("DEEPSEEK_API_KEY") else "OpenAI 兼容网关",
+        "provider": "OpenAI 兼容网关",
         "key": key,
-        "base_url": _env("DEEPSEEK_BASE_URL", "OPENAI_BASE_URL") or DEFAULT_BASE_URL,
-        "model": _env("OPENAI_MODEL", "DEEPSEEK_MODEL"),
+        "base_url": _env("OPENAI_BASE_URL") or "https://api.openai.com/v1",
+        "model": _env("OPENAI_MODEL"),
     }
 
 
 def model_status(cfg):
     """只供界面读取非敏感状态；密钥与地址不返回给浏览器。"""
-    settings = model_settings()
+    settings = model_settings(cfg)
     return {
-        "provider": settings["provider"], "configured": bool(settings["key"]),
+        "provider": settings["provider"], "configured": bool(settings["key"]) or settings.get("id") == "codex",
         "model": settings["model"] or cfg.get("models", {}).get("rank", ""),
     }
 
 
-def get_client() -> OpenAI:
-    settings = model_settings()
+def get_client(cfg=None):
+    settings = model_settings(cfg)
+    if settings.get("id") == "codex":
+        return CodexClient(cfg or {})
     key = settings["key"]
     if not key:
+        if settings.get("id") in PROVIDERS:
+            raise RuntimeError(f"Missing {PROVIDERS[settings['id']]['key_env']}. Configure this provider in Settings.")
         raise SystemExit(
             "没读到 API key。检查：\n"
             "  1) .env 是否在你运行命令的那个目录（或其上级）\n"
@@ -68,7 +94,11 @@ def get_client() -> OpenAI:
             "  3) 是否已 pip install python-dotenv"
         )
     # DeepSeek/OpenAI 兼容端点只换 base_url；环境变量可覆盖（接代理/自建网关）。
-    return OpenAI(api_key=key, base_url=settings["base_url"], timeout=90, max_retries=1)
+    if settings.get("id") == "anthropic":
+        return AnthropicClient(settings)
+    instance = OpenAI(api_key=key, base_url=settings["base_url"], timeout=120, max_retries=1)
+    instance._infoflow_settings = settings
+    return instance
 
 
 def resolve_model(cfg_model):
@@ -81,13 +111,17 @@ def resolve_model(cfg_model):
 
 
 def chat(client, model, system, user, temperature=0.3):
+    if isinstance(client, (CodexClient, AnthropicClient)):
+        return client.complete(model, system, user, temperature)
+    settings = getattr(client, "_infoflow_settings", None)
+    actual_model = (settings.get("model") or model) if settings is not None else resolve_model(model)
+    # Keep provider/model defaults: reasoning models may reject arbitrary temperature values.
     resp = client.chat.completions.create(
-        model=resolve_model(model),
+        model=actual_model,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        temperature=temperature,
     )
     return resp.choices[0].message.content
 
@@ -101,7 +135,12 @@ def extract_json(raw: str):
             first, rest = raw.split("\n", 1)
             if first.strip().lower() in ("json", ""):
                 raw = rest
-    start, end = raw.find("{"), raw.rfind("}")
-    if start != -1 and end != -1:
-        raw = raw[start:end + 1]
+    decoder = json.JSONDecoder()
+    for start, char in enumerate(raw):
+        if char in "[{":
+            try:
+                value, _ = decoder.raw_decode(raw[start:])
+                return value
+            except ValueError:
+                continue
     return json.loads(raw)

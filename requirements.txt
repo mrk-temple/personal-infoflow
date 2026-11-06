@@ -3,4 +3,4 @@ feedparser
 pyyaml
 python-dotenv
 trafilatura
-fastembed
+# Optional semantic layer: python -m pip install -e ".[embed]"

@@ -3,6 +3,7 @@ import json
 import pathlib
 
 from .config import resolve
+from .storage import write_json
 
 _MODEL = None  # fastembed 模型懒加载（加载较慢，复用）
 
@@ -27,8 +28,7 @@ def _load_cache(cfg):
 
 def _save_cache(cfg, cache):
     p = _cache_path(cfg)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(cache), encoding="utf-8")
+    write_json(p, cache)
 
 
 def _key(model, text):
@@ -52,9 +52,11 @@ def _fastembed(cfg, texts):
     global _MODEL
     from fastembed import TextEmbedding
     name = _cfg(cfg).get("model", "BAAI/bge-small-en-v1.5")
-    if _MODEL is None or getattr(_MODEL, "_iname", None) != name:
-        _MODEL = TextEmbedding(model_name=name)
-        _MODEL._iname = name
+    model_dir = resolve(_cfg(cfg).get("model_cache_path", "data/models"))
+    identity = (name, model_dir)
+    if _MODEL is None or getattr(_MODEL, "_iname", None) != identity:
+        _MODEL = TextEmbedding(model_name=name, cache_dir=model_dir)
+        _MODEL._iname = identity
     return [list(map(float, v)) for v in _MODEL.embed(texts)]
 
 

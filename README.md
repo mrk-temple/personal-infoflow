@@ -1,123 +1,174 @@
-# personal-infoflow
+# Personal InfoFlow
 
-## 源码版使用说明 · 2026-11-05
+**[English](README.en.md) · 简体中文**
 
-Python 3.10+：`python -m pip install -e ".[dev]"`，复制 `.env.example` 和 `config.example.yaml` 为本地配置；`python -m infoflow --web` 打开界面。
+一份从你的笔记出发、每天为你选稿的私人报纸。
 
-画像会读取你配置的笔记，远程模型会接收任务需要的内容。公开仓库不包含个人 vault 路径、兴趣画像、反馈或密钥；自动采集需要网络。
+Personal InfoFlow 读取你指定的 Obsidian 笔记，从公开订阅源采集内容，按兴趣贴合与视野拓展筛选，再把日报写回本地 Markdown。你可以在浏览器里读，也可以直接在 Obsidian 里读；标注“好／差”后，下一期会据此调整。
 
-本次检查：32 项测试和内嵌浏览器脚本语法检查通过。 详细范围见 [验证与后续工作](RELEASE_CHECK.md)。敏感信息规则见 [SECURITY.md](SECURITY.md)。
+模型、配图方式、推荐比例、每期条数和订阅源都由你选择。界面支持中英文，以及暖纸报、黑白报两种配色。
 
-一个长在你 Obsidian 里的个性化信息流。它读你的笔记建立"兴趣画像"，从多个来源抓内容，用大模型按 **3 贴合 : 7 开眼界** 的配方筛选，每天写一篇简报回你的 vault——你在简报里随手标个"好/差"，它下次就更懂你。
+![真实使用：中文暖纸日报](docs/screenshots/daily-zh-warm.jpg)
 
-没有新 App，没有又一个要登录的网站。**Obsidian 就是界面**，一篇 markdown 就是交付，编辑那篇 markdown 就是反馈。
+> 截图来自本地运行：公开示例兴趣笔记、Hacker News / Quanta Magazine / Ars Technica 的实际采集，以及已登录 Codex CLI 的真实排序。没有使用个人笔记或伪造界面数据。详见[验证记录](RELEASE_CHECK.md)。
 
-> 示例产出见 [`examples/sample-digest.md`](examples/sample-digest.md)。
+## 它能做什么
 
-## 它解决什么
+- **给兴趣留出边界**：默认 3 份贴合、7 份拓展，可在设置里调整到自己的比例，也可启用基于反馈的自适应比例。
+- **像读报纸一样阅读**：分栏、头条、来源筛选、搜索、未读、跨日期稍后读；支持 `/` 搜索、`J/K` 浏览、`S` 保存、`M` 标为已读。
+- **把每天留下来**：每个日期一篇 `YYYY-MM-DD.md`；同日再运行会追加，重启后可从日期选择器找到往期。改变模型或来源不会删除日报。
+- **允许反悔的反馈**：“好”可改成“差”，也可清空；网页立即同步，Obsidian 手改后下次同步。旧标注会从来源、关键词、命中率和偏好记录中撤回。修复详情见 [issue #1](https://github.com/mrk-temple/personal-infoflow/issues/1)。
+- **可选的额外信号**：导入 AI 对话、手动捕获、Telegram 白名单接收；收藏和前台可见停留可作为较弱的正向信号，默认关闭，不把未点击当作不喜欢。
+- **分层画像**：长期知识、近期项目、实时捕获与明确反馈分开处理；反馈和近期信号有可配置的时间衰减。自动排除日报与画像笔记，避免把自己生成的推荐循环学进去。
 
-主流推荐要么把你关进回音壁，要么是无差别的热榜。这个项目的赌注是：**真正的个性化是一个"你"的模型 + 一道狠筛**——难的不是抓内容，是有底气地扔掉 95%。所以它刻意保留拓展位，每天强行塞几条你舒适区之外、但邻近的内容，避免越看越窄。
+## 先看界面
 
-## 工作原理
+中文暖纸版见上图。英文和黑白配色可以在右上角切换，语言和配色会保存在当前浏览器。
 
-1. **画像**：读 Obsidian 笔记（+ AI 对话记录 + 你的历史反馈）→ 一份会进化的兴趣档案
-2. **获取**：多类型源——RSS / Hacker News / Reddit / arXiv / Google News / GitHub 新热 / YouTube 频道
-3. **去重**：本地 embedding 把同一事件的不同标题语义聚合，只留一条代表
-4. **排序**：模型给每条打"相关性"和"拓展性"两个分；可选抓取正文让打分更准
-5. **配方**：简报按 3:7 选条（贴合按相关性、拓展按开眼界分），命中率低时自动微调比例
-6. **交付**：写一篇当日简报进 vault（同一天多次跑则追加不覆盖）；也可在 Web 界面里直接看
-7. **反馈**：你标"好/差"（Obsidian 里写，或网页上点）→ 自动调整来源权重、关键词偏置和画像，越用越准
+![真实使用：英文黑白日报，按 Quanta 来源筛选](docs/screenshots/daily-en-mono.jpg)
 
-## 两种用法
+模型与来源收在“设置”里，阅读页不显示供应商名称。
 
-**A. Web 界面（最省事）**
+![阅读配方与模型设置](docs/screenshots/settings-zh.jpg)
 
-```bash
-python -m infoflow --web        # 打开 http://127.0.0.1:7781（装包后也可用 `infoflow --web`）
+<details>
+<summary>第一次打开的样子</summary>
+
+![首次打开](docs/screenshots/first-open-zh.jpg)
+
+</details>
+
+## 快速开始
+
+需要 Python 3.10+。下面两种安装方式选一种。
+
+**Windows PowerShell**
+
+```powershell
+git clone https://github.com/mrk-temple/personal-infoflow.git
+cd personal-infoflow
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+Copy-Item config.example.yaml config.yaml
+Copy-Item .env.example .env
 ```
 
-浏览器里跑一轮、读当日简报、点「好/差」标反馈，进度实时可见。极简实现：标准库
-`http.server` + 一张无框架单页（零新增依赖），默认只监听本机。
-
-**B. 本地 CLI**
+**macOS / Linux**
 
 ```bash
-git clone <your-repo-url> && cd personal-infoflow
-python -m venv .venv && source .venv/bin/activate
-pip install -e .                     # 或 pip install -e ".[embed]" 装上本地语义层
-
-cp .env.example .env                 # 填入 MIMO_API_KEY
-cp config.example.yaml config.yaml   # 改 vault 路径、内容源
-
-python -m infoflow --refresh-profile   # 首次：建画像 + 出简报
-python -m infoflow                      # 之后每天跑（装包后也可直接用 `infoflow`）
-python -m infoflow --feedback           # 只汇总反馈，不抓取
-python -m infoflow -v                   # 加 -v 看更详细日志
+git clone https://github.com/mrk-temple/personal-infoflow.git
+cd personal-infoflow
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e .
+cp config.example.yaml config.yaml
+cp .env.example .env
 ```
 
-挂到 cron / 计划任务里每天自动跑即可。
+编辑 `config.yaml` 的 `vault_path` 与 `digest.output_dir`，指向自己的笔记库及日报目录。相对路径以 **config 文件所在目录**为起点；也可用绝对路径或 `~`。
 
-**C. 作为 agent skill（与 agent 无关）**
-
-核心逻辑与 CLI 共用一份。skill 入口脚本会自动定位仓库与解释器，任何能跑 shell 或 Python 的
-agent（Claude Code / Hermes / 其它）都能用。一条命令装好：
+启动阅读页：
 
 ```bash
-skill/personal-infoflow/install.sh                 # 默认装到 ~/.claude/skills（Claude Code）
-skill/personal-infoflow/install.sh /path/to/skills # 或装到其它 agent 的 skills 目录
+python -m infoflow --web
 ```
 
-装好后对 agent 说"给我今天的信息流"即可。详见 [`skill/personal-infoflow/README.md`](skill/personal-infoflow/README.md)。
+Windows 没有激活虚拟环境时，用 `.\.venv\Scripts\python.exe` 代替 `python`。打开 `http://127.0.0.1:7781`，在“设置”里选择自己的文字模型与消息来源，然后生成日报。
 
-## 配置要点（全在 `config.yaml`）
+没有准备好自己的 vault 时，可用仓库自带的公开笔记试跑：`python -m infoflow --config examples/demo-config.yaml --web`。它采集真实公开订阅源，日报与状态写到忽略的 `data/demo/`；需要已登录的 Codex CLI。
 
-Web 版采用暖纸色、宋体报头和分栏阅读布局，可按「贴合兴趣 / 开眼界」切换栏目。
+### 选自己的模型
 
-MiMo 接入：在本地 `.env` 设置 `MIMO_API_KEY`、`MIMO_BASE_URL`、`MIMO_MODEL`。
-默认使用 `https://api.xiaomimimo.com/v1` 和 `mimo-v2.6-pro`；Token Plan 使用控制台
-提供的专属地址和密钥。配置后重启服务，页顶会显示供应商与模型。
-密钥由 Python 服务端读取，浏览器只收到是否已配置的状态。
-`MIMO_API_KEY` 非空时，所有模型任务优先使用这组配置，避免沿用旧网关地址与模型；
-未设置时仍兼容原有 `DEEPSEEK_*` / `OPENAI_*`。
-接口说明见 [MiMo 官方文档](https://mimo.mi.com/docs/en-US/quick-start/summary/first-api-call)。
+| 方式 | 配置 |
+| --- | --- |
+| Codex CLI | 示例配置默认使用此方式。先安装并登录 [Codex CLI](https://learn.chatgpt.com/docs/non-interactive-mode)；可填写可执行文件路径。无需另建 API key，仍会使用账号已有额度。 |
+| DeepSeek / Kimi / MiMo / Qwen | 在设置里选择供应商、模型 ID 与服务地址，填写自己的 key；也可使用 `.env`。地区、专属计划或工作空间不同，地址可能不同。 |
+| OpenAI / Anthropic Claude | 支持 OpenAI Chat Completions 和 Anthropic 原生 Messages 协议；模型 ID 由你填写。ChatGPT/Claude 的产品订阅与各家 API 配置需分别确认。 |
+| 自定义兼容服务 | 填写自己的 OpenAI 兼容地址、模型 ID 和 key，可用于兼容网关或本地模型服务。 |
 
-- `sources`：内容源列表，面越宽越好。`googlenews` 那条专门用来主动拉"邻近但你没接触过"的主题；`youtube` 可填频道 ID 或 `@handle`（自动解析）。
-- `digest.exploration_ratio`：开眼界占比，默认 0.7（即 3:7）。
-- `embedding`：本地向量层（语义去重 +"更多类似"），需 `pip install fastembed`；不装会自动回退标题去重。
-- `fetch.full_text`：是否抓正文再打分（更准但更慢）。
-- `feedback.*`：反馈对来源/关键词权重的影响力度、自适应比例开关。
-- 中文平台（知乎 / 公众号 / 豆瓣 / X）没有公开 API，用 [RSSHub](https://docs.rsshub.app) 转成 RSS 后当普通 `rss` 源接入；公共实例常限流，建议自建。
+选择某家供应商后，不会拿另一家的密钥自动顶替。`auto` 保留旧版环境变量检测方式；有多组配置时建议明确选择供应商。
 
-## 注意事项
+在界面填写的密钥仅写入 config 旁的 `.env.local`，不会返回浏览器。非敏感偏好存到 `data/settings.json`，重启后恢复；`.env.local` 与 `data/` 已忽略。
 
-- **隐私**：建画像会把你的笔记内容发给大模型 API。介意就先精简 `profile.exclude` 或换本地模型。
-- **来源是尽力而为**：Reddit 未登录常被限流、RSSHub 公共实例不保证可用，失败会自动跳过。
-- **配图**：当前留给上层（如 Hermes 的生图工具）处理，本地管线默认 `portrait.enabled: false`。
-- 这是个人项目，不是生产级服务。
+### 自己决定是否配图
 
-## 已做 / Roadmap
+默认不配图。可在设置中选：
 
-已完成：多源获取（含 YouTube）、全文抓取、本地 embedding 语义去重、"更多类似"、命中率评估与自适应 3:7、关键词级反馈偏置、同日追加、Web 界面（跑一轮/读简报/标反馈）、Hermes skill 封装。
+1. **自己的生图 API**：填写兼容 `/images/generations` 的服务地址、模型 ID、`IMAGE_API_KEY`。
+2. **Codex CLI**：调用已登录的 CLI 与其内置 `gpt-image-2` 能力；受当前 CLI 版本、账号工具权限及额度影响。
+3. **本地 Stable Diffusion / Forge**：连接已启用 API 的服务，例如 `http://127.0.0.1:7860` 的 `/sdapi/v1/txt2img`。可填已有 checkpoint；项目不会替你安装模型或启动本地生图服务。
 
-待做：
+在“兴趣画像”里手动生成，或勾选“更新画像时自动配图”。图片按时间归档，保留旧图。CLI 没有内置生图能力时，可用 App 交接：
 
-- [ ] Telegram 捕获"日常刷到的东西"作为额外信号
-- [ ] 隐式反馈（从行为推断喜好）
-- [ ] 画像分层 + 时间衰减
-- [ ] 出图走 Codex OAuth + gpt-image-2
+<details>
+<summary>实测的 CLI 配图与画像窗口</summary>
 
-## 开发
+![公开提示词经 CLI 生图后在真实画像窗口显示](docs/screenshots/profile-zh.jpg)
+
+</details>
 
 ```bash
-pip install -e ".[dev]"   # 装 pytest + ruff
-pytest                     # 跑单测
-ruff check .               # 静态检查
+python -m infoflow --portrait-prepare
+# 在 Codex App 中打开输出的 prompt.md，用 $imagegen 生成 PNG
+python -m infoflow --portrait-import /path/to/generated.png
 ```
 
-- 架构与数据流见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
-- 改动记录见 [`CHANGELOG.md`](CHANGELOG.md)。
-- CLI 与 skill 共用同一份编排 `infoflow.pipeline.run`，逻辑只此一处。
+## 日常使用
 
-## License
+```bash
+python -m infoflow                     # 出一期日报
+python -m infoflow --refresh-profile   # 更新长期画像后再出一期
+python -m infoflow --feedback          # 只同步反馈，不调用模型
+python -m infoflow --language en       # 这次生成英文推荐理由
+python -m infoflow --capture "一条值得保存的内容 https://example.com/article"
+python -m infoflow --telegram-sync     # 接收一批白名单 Telegram 消息
+```
 
-MIT
+切换界面语言不会改写已有文章或日报。下一次生成的推荐理由使用所选语言；旧日报保持原样。
+
+在 Obsidian 里，可在每条 `反馈::` 后写 `好` / `差`，英文日报则用 `Feedback:: good` / `bad`。删除标记可撤回。网页上的稍后读、已读与明确好坏是独立状态：打开链接不等于已经读完。
+
+### Telegram 捕获
+
+在 `.env` 设置自己的 `TELEGRAM_BOT_TOKEN`，在 config 中填 `telegram.allowed_chat_ids` 白名单，再开启 `telegram.enabled`。每次运行接收最多 100 条更新，继续运行会从已保存的 offset 接着接收；也可以只运行 `--telegram-sync`。
+
+此功能只接收文字、链接与图片说明，不发送消息，不下载附件。不要与同一 bot 的其他轮询器或 webhook 同时占用更新。详见[配置说明](docs/CONFIGURATION.md)。
+
+## 内容源与可选依赖
+
+内置 RSS / Atom、Hacker News、arXiv、Reddit、Google News、GitHub、YouTube，以及指向自建 RSSHub 的 X 适配器。设置里可以添加、关闭或移除来源，并调整每个来源的采集条数。单个源失败会列入运行详情并跳过，其他来源仍可继续。
+
+可选本地语义去重与“更多类似”：
+
+```bash
+python -m pip install -e ".[embed]"
+```
+
+然后开启 config 中的 `embedding.enabled`。首次使用会下载模型；不安装时会退回标题去重。正文抓取、反馈力度、衰减周期和路径等高级项见 [config.example.yaml](config.example.yaml)。
+
+## 从旧版升级
+
+- 先备份自己的 config、日报和状态；更新源码并重新安装。
+- **相对路径现在跟随 config 文件**。旧版默认状态在 `infoflow/data/`；可在 config 中继续显式指向这个目录，或把状态复制到 config 旁的 `data/`。原始文件不用删除。
+- 建议升级后执行一次 `--refresh-profile`，让旧版包含反馈的缓存画像更新为分层格式。
+- 第一次运行 `--feedback` 会按现有日报重新核对旧反馈，折叠重复键，修正更改与清空的标注。已归档、不在目录中的日期保留历史记录。
+
+## 开发与验证
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pytest
+python -m ruff check .
+python tools/check_public.py
+```
+
+测试覆盖反馈撤回、真实 HTTP 接口、供应商隔离、CLI 交接、设置持久化、时间衰减与坏模型响应。API 适配器的协议测试不等于所有供应商账号都已实测可用；本轮实测范围与截图来源写在[验证记录](RELEASE_CHECK.md)。
+
+- [架构与 Python 模块](docs/ARCHITECTURE.md)
+- [完整配置与隐私边界](docs/CONFIGURATION.md)
+- [参考与改进依据](docs/DESIGN_NOTES.md)
+- [更新记录](CHANGELOG.md)
+- [Agent skill 用法](skill/personal-infoflow/README.md)
+- [安全说明](SECURITY.md)
+
+MIT License.

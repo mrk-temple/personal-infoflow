@@ -1,3 +1,4 @@
+import calendar
 import logging
 import re
 import time
@@ -15,12 +16,20 @@ def _within_days(entry, days):
     pub = entry.get("published_parsed") or entry.get("updated_parsed")
     if not pub:
         return True
-    dt = datetime.fromtimestamp(time.mktime(pub), tz=timezone.utc)
+    dt = datetime.fromtimestamp(calendar.timegm(pub), tz=timezone.utc)
     return dt >= datetime.now(timezone.utc) - timedelta(days=days)
 
 
 def _get_json(url):
     return http.get_json(url)
+
+
+def _feed(url):
+    raw, _ = http.get_bytes(url, timeout=25, max_bytes=3_000_000)
+    parsed = feedparser.parse(raw)
+    if parsed.bozo and not parsed.entries:
+        raise ValueError("The source did not return a readable RSS/Atom feed")
+    return parsed
 
 
 # ---- 各类源的适配器：都返回 {title, link, summary, source} 列表 ----
@@ -29,7 +38,7 @@ def from_rss(spec, cfg):
     url = spec.get("url")
     if not url:
         raise ValueError("rss 源缺少 url 字段（检查 config 里这一条是不是漏写/缩进错了 url）")
-    d = feedparser.parse(url)
+    d = _feed(url)
     source = spec.get("name") or d.feed.get("title", spec["url"])
     out = []
     for e in d.entries[: spec.get("limit", cfg["fetch"]["per_feed"])]:
@@ -80,9 +89,9 @@ def from_reddit(spec, cfg):
 def from_arxiv(spec, cfg):
     cat = spec["category"]
     n = spec.get("limit", 30)
-    url = (f"http://export.arxiv.org/api/query?search_query=cat:{cat}"
+    url = (f"https://export.arxiv.org/api/query?search_query=cat:{cat}"
            f"&sortBy=submittedDate&sortOrder=descending&max_results={n}")
-    d = feedparser.parse(url)
+    d = _feed(url)
     out = []
     for e in d.entries:
         if not e.get("link"):
@@ -101,7 +110,7 @@ def from_googlenews(spec, cfg):
     out = []
     for q in spec.get("queries", []):
         url = "https://news.google.com/rss/search?q=" + urllib.parse.quote(q) + "&hl=en-US&gl=US&ceid=US:en"
-        d = feedparser.parse(url)
+        d = _feed(url)
         for e in d.entries[: spec.get("limit", 10)]:
             if not e.get("link") or not _within_days(e, cfg["fetch"]["days"]):
                 continue
@@ -165,7 +174,7 @@ def from_youtube(spec, cfg):
             log.warning("  [youtube] 解析不了 handle %s，跳过", h)
     out = []
     for kind, ident in targets:
-        d = feedparser.parse(f"https://www.youtube.com/feeds/videos.xml?{kind}={ident}")
+        d = _feed(f"https://www.youtube.com/feeds/videos.xml?{kind}={ident}")
         source = d.feed.get("title", ident)
         for e in d.entries[: spec.get("limit", 10)]:
             if not e.get("link") or not _within_days(e, cfg["fetch"]["days"]):
@@ -188,7 +197,7 @@ def from_twitter(spec, cfg):
     out = []
     for handle in spec.get("handles", []):
         h = handle.lstrip("@")
-        d = feedparser.parse(f"{base}/twitter/user/{h}")
+        d = _feed(f"{base}/twitter/user/{h}")
         for e in d.entries[: spec.get("limit", 15)]:
             if not e.get("link") or not _within_days(e, cfg["fetch"]["days"]):
                 continue
@@ -220,8 +229,10 @@ def _label(spec):
         or ",".join(spec.get("queries", [])) or ""
 
 
-def gather(cfg):
+def gather(cfg, progress=None):
     items, seen = [], set()
+    report = []
+    cfg["_source_report"] = report
 
     specs = list(cfg.get("sources", []))
     # 兼容旧的 feeds: 列表，按 rss 处理
@@ -232,8 +243,11 @@ def gather(cfg):
         if not spec.get("enabled", True):
             continue
         fn = ADAPTERS.get(spec.get("type"))
+        label = spec.get("name") or spec.get("type", "unknown")
+        started = time.monotonic()
         if not fn:
-            log.warning("  跳过未知来源类型：%s", spec.get("type"))
+            report.append({"name": label, "status": "unknown", "count": 0})
+            log.warning("Unknown source type: %s", spec.get("type"))
             continue
         try:
             kept = 0
@@ -242,8 +256,15 @@ def gather(cfg):
                     seen.add(it["link"])
                     items.append(it)
                     kept += 1
-            log.info("  [%s] %s → %d 条", spec["type"], _label(spec), kept)
-        except Exception as e:
-            log.warning("  [%s] %s 抓取失败（跳过）：%s", spec.get("type"), _label(spec), e)
+            report.append({"name": label, "status": "ok" if kept else "empty", "count": kept,
+                           "duration_ms": round((time.monotonic() - started) * 1000)})
+            message = f"  [{label}] {kept} stories"
+        except Exception as exc:
+            report.append({"name": label, "status": "error", "count": 0, "error": type(exc).__name__})
+            message = f"  [{label}] unavailable ({type(exc).__name__}); skipped"
+        if progress:
+            progress(message)
+        else:
+            log.info(message)
 
     return items

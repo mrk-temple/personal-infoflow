@@ -2,7 +2,10 @@
 .env
 config.yaml
 infoflow/data/
+data/
 *.png
+!docs/screenshots/*.png
+**/.portrait-jobs/
 
 # Python
 __pycache__/

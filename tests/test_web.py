@@ -155,7 +155,7 @@ def test_run_async_rejects_concurrent_runs(monkeypatch, tmp_path):
         return {"picked": 0}
 
     monkeypatch.setattr("infoflow.pipeline.run", fake_run)
-    monkeypatch.setattr("infoflow.client.get_client", lambda: None)
+    monkeypatch.setattr("infoflow.client.get_client", lambda *args: None)
     web.run_async(cfg)
     assert started.wait(5)
     with pytest.raises(RuntimeError):

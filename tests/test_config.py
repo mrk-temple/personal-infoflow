@@ -36,3 +36,21 @@ def test_missing_file(tmp_path):
 def test_missing_required_keys(tmp_path):
     with pytest.raises(ConfigError):
         load_config(_write(tmp_path, "models: {profile: p, rank: r}\n"))  # 无 sources/output_dir
+
+
+@pytest.mark.parametrize("extra", ["rank: {batch_size: 0}", "digest: {output_dir: out, exploration_ratio: 2}",
+    "feedback: null", "telegram: {enabled: true}", "language: fr", "reading: {max_entries: 1.5}"])
+def test_invalid_options_fail_with_config_errors(tmp_path, extra):
+    with pytest.raises(ConfigError):
+        load_config(_write(tmp_path, "models: {profile: p, rank: r}\nsources: [{type: hackernews}]\n"
+                           "digest: {output_dir: out}\n" + extra))
+
+
+def test_relative_paths_follow_config_file_not_working_directory(tmp_path, monkeypatch):
+    other = tmp_path / "other"
+    other.mkdir()
+    path = _write(tmp_path, "models: {profile: p, rank: r}\nsources: [{type: hackernews}]\ndigest: {output_dir: out}\n")
+    monkeypatch.chdir(other)
+    cfg = load_config(path)
+    assert cfg["digest"]["output_dir"] == str(tmp_path / "out")
+    assert cfg["state"]["seen_path"] == str(tmp_path / "data" / "seen.json")

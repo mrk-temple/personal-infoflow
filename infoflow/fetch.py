@@ -2,5 +2,5 @@
 from .sources import gather
 
 
-def fetch_items(cfg):
-    return gather(cfg)
+def fetch_items(cfg, log=None):
+    return gather(cfg, progress=log)

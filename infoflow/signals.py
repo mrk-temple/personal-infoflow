@@ -1,7 +1,10 @@
 import json
 import pathlib
+from datetime import datetime, timezone
 
+from .capture import capture_context
 from .config import resolve
+from .storage import decay_weight
 
 CHAT_EXTS = {".json", ".md", ".txt"}
 CAP_EXTS = {".md", ".txt"}
@@ -87,17 +90,20 @@ def _extract_chat_file(f):
     return "\n".join(acc)
 
 
-def _read_capped(files, cap, extractor):
+def _read_capped(files, cap, extractor, half_life=0):
     files = [f for f in files if f.is_file()]
     files.sort(key=lambda f: f.stat().st_mtime, reverse=True)  # 最近的优先
     chunks, total = [], 0
     for f in files:
+        weight = decay_weight(datetime.fromtimestamp(f.stat().st_mtime, timezone.utc).isoformat(), half_life)
+        if weight < .1:
+            continue
         text = (extractor(f) or "").strip()
         if not text:
             continue
         if total + len(text) > cap:
             text = text[: max(0, cap - total)]
-        chunks.append(text)
+        chunks.append((f"[signal weight {weight:.2f}]\n" if half_life else "") + text)
         total += len(text)
         if total >= cap:
             break
@@ -113,10 +119,18 @@ def collect_chat(cfg):
     if not p.exists():
         return ""
     files = [f for f in p.rglob("*") if f.suffix.lower() in CHAT_EXTS]
-    return _read_capped(files, s.get("chat_max_chars", 60000), _extract_chat_file)
+    return _read_capped(files, s.get("chat_max_chars", 60000), _extract_chat_file,
+                        s.get("half_life_days", 30))
 
 
 def collect_captures(cfg):
+    stored = capture_context(cfg)
+    imported = _collect_capture_files(cfg)
+    cap = cfg.get("signals", {}).get("capture_max_chars", 20000)
+    return "\n\n".join(t for t in (stored, imported) if t)[:cap]
+
+
+def _collect_capture_files(cfg):
     s = cfg.get("signals", {})
     path = s.get("capture_path", "")
     if not path:
@@ -126,12 +140,11 @@ def collect_captures(cfg):
         return ""
     cap = s.get("capture_max_chars", 20000)
     if p.is_file():
-        try:
-            return p.read_text(encoding="utf-8", errors="ignore")[:cap]
-        except Exception:
-            return ""
+        return _read_capped([p], cap, lambda f: f.read_text(encoding="utf-8", errors="ignore"),
+                            s.get("half_life_days", 30))
     files = [f for f in p.rglob("*") if f.suffix.lower() in CAP_EXTS]
-    return _read_capped(files, cap, lambda f: f.read_text(encoding="utf-8", errors="ignore"))
+    return _read_capped(files, cap, lambda f: f.read_text(encoding="utf-8", errors="ignore"),
+                        s.get("half_life_days", 30))
 
 
 def extra_profile_context(cfg):

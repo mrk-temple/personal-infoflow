@@ -69,3 +69,14 @@ def test_json_with_surrounding_prose():
 def test_bare_fence_without_lang():
     raw = "```\n{\"x\": true}\n```"
     assert extract_json(raw) == {"x": True}
+
+
+def test_legacy_deepseek_key_does_not_fall_through_to_openai_endpoint(monkeypatch, clean_provider_env):
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-deepseek")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://other-provider.invalid/v1")
+    assert client.model_settings()["base_url"] == client.DEFAULT_BASE_URL
+
+
+def test_openai_key_without_override_uses_official_openai_endpoint(monkeypatch, clean_provider_env):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-openai")
+    assert client.model_settings()["base_url"] == "https://api.openai.com/v1"
